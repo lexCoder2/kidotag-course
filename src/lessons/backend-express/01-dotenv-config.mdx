@@ -1,0 +1,169 @@
+# Variables de entorno con dotenv
+
+<LibCard
+  nombre="dotenv"
+  version="17.2.3"
+  npm="dotenv"
+  categoria="devtools"
+  docs="https://github.com/motdotla/dotenv"
+  descripcion="Carga variables desde un archivo .env a process.env al iniciar la aplicación. Implementa el principio 12-factor de configuración separada del código."
+  porque="Las credenciales (contraseñas de DB, JWT secret, URLs de servicios) jamás deben estar hardcodeadas en el código fuente ni en el repositorio. dotenv permite cambiar la configuración sin modificar ni desplegar código nuevo."
+  usoEjemplo={`// src/index.js — PRIMERA línea del proyecto
+require('dotenv').config();
+
+// A partir de aquí, process.env tiene los valores del .env:
+const port = process.env.PORT || 4000;
+const uri = process.env.MONGODB_URI;
+
+// .env (en el .gitignore — nunca subir)
+// PORT=4000
+// MONGODB_URI=mongodb://localhost:27017/kidotag
+// JWT_SECRET=cambiar_por_valor_seguro_en_produccion
+// FRONTEND_URL=http://localhost:5173`}
+alternativas={[
+{ nombre: "Variables de entorno del SO", porque_no: "Correcto en producción (Heroku, Railway, Docker). dotenv las simula en local sin necesidad de export VARIABLE=valor cada vez." },
+{ nombre: "config.js con valores hardcodeados", porque_no: "Si ese archivo llega a git, las credenciales quedan expuestas. Nunca usar para secrets." },
+]}
+/>
+
+## El principio 12-Factor
+
+dotenv implementa el [factor III de la metodología 12-Factor](https://12factor.net/config): **"Store config in the environment"**.
+
+La regla es simple: **si el valor cambiaría entre tu laptop, el servidor de staging y producción, es configuración — no código**.
+
+| ¿Es configuración?  | Ejemplos                                               |
+| ------------------- | ------------------------------------------------------ |
+| ✅ Sí, usa .env     | URL de BD, JWT secret, puerto, claves de API           |
+| ❌ No, en el código | Rutas de Express, lógica de negocio, componentes React |
+
+## El archivo `.env` de kidotag10
+
+```bash
+# api/.env — basado en ESCUELA_DEMO.md del proyecto
+PORT=4000
+MONGODB_URI=mongodb://localhost:27017/kidotag_demo
+JWT_SECRET=kidotag_secret_cambiar_en_produccion
+FRONTEND_URL=http://localhost:5173
+
+# Datos de la escuela demo
+ESCUELA_NOMBRE="Escuela Demo Kidotag"
+ESCUELA_ADMIN_EMAIL=admin@kidotag.demo
+ESCUELA_ADMIN_PASS=Admin2024!
+```
+
+<Callout variante="danger" titulo=".env va en .gitignore">
+  El archivo `.env` contiene credenciales reales. **Nunca** debe subirse a git.
+  Verifica que esté en tu `.gitignore` antes de hacer commit. kidotag10 incluye
+  un archivo `.env.example` como plantilla.
+</Callout>
+
+## Cómo acceder a las variables
+
+```javascript
+// En cualquier archivo del API (después del require('dotenv').config())
+const { MONGODB_URI, JWT_SECRET, PORT } = process.env;
+
+// Con valores por defecto para desarrollo
+const port = process.env.PORT || 4000;
+const secret = process.env.JWT_SECRET;
+
+if (!secret) {
+  console.error("❌ JWT_SECRET no definido en .env");
+  process.exit(1); // no arrancar sin el secret
+}
+```
+
+<Callout variante="tip" titulo="process.env siempre son strings">
+  `process.env.PORT` es siempre un string, aunque escribas `PORT=4000` en el
+  .env. Si necesitas un número, conviértelo: `Number(process.env.PORT) || 4000`.
+</Callout>
+
+## src/config/database.js de kidotag10
+
+```javascript
+const mongoose = require("mongoose");
+
+async function conectarDB() {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log("✅ MongoDB conectado");
+  } catch (error) {
+    console.error("❌ Error de conexión:", error.message);
+    process.exit(1);
+  }
+}
+
+module.exports = { conectarDB };
+```
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué process.env.JWT_SECRET no debe tener un valor por defecto en producción?",
+      opciones: [
+        { texto: "Porque dotenv no permite valores por defecto" },
+        {
+          texto:
+            "Porque un valor por defecto conocido en el código puede comprometer la seguridad si alguien lee el repositorio",
+          correcta: true,
+        },
+        { texto: "Porque JWT_SECRET no se usa en producción" },
+        { texto: "Por razones de rendimiento" },
+      ],
+      explicacion:
+        "Si el código contiene `JWT_SECRET || 'mi_secret_por_defecto'`, cualquiera que lea el repositorio conoce la clave — y podría generar tokens válidos. En producción, si falta la variable, el servidor debe fallar.",
+    },
+    {
+      pregunta:
+        "¿En qué línea de src/index.js debe ir require('dotenv').config()?",
+      opciones: [
+        { texto: "Al final, después de iniciar el servidor" },
+        { texto: "Solo en los archivos que necesitan process.env" },
+        {
+          texto: "La primera línea, antes de cualquier otra importación",
+          correcta: true,
+        },
+        { texto: "En cada controlador que usa variables de entorno" },
+      ],
+      explicacion:
+        "dotenv.config() debe ejecutarse ANTES de que se carguen los módulos que usan process.env. Si express o mongoose se importan primero, podrían leer variables aún no cargadas.",
+    },
+    {
+      pregunta:
+        "¿Por qué el archivo .env debe estar en el .gitignore del proyecto?",
+      opciones: [
+        { texto: "Porque Git no puede manejar archivos con el prefijo punto" },
+        {
+          texto:
+            "Para que el archivo no se suba al repositorio y exponga credenciales (contraseñas, API keys, URIs de base de datos) a cualquiera con acceso al repo",
+          correcta: true,
+        },
+        { texto: "Para que dotenv funcione correctamente" },
+        {
+          texto:
+            "Por razones de rendimiento del sistema de control de versiones",
+        },
+      ],
+      explicacion:
+        "Un .env expuesto en GitHub con MONGODB_URI y JWT_SECRET permite a un atacante conectarse a tu base de datos y generar tokens válidos. El .env.example (sin valores reales) sí se sube al repo para documentar qué variables se necesitan.",
+    },
+    {
+      pregunta:
+        "¿Cómo debería reaccionar kidotag10 si JWT_SECRET no está definido en las variables de entorno al arrancar?",
+      opciones: [
+        { texto: "Arrancar normalmente con un valor por defecto" },
+        {
+          texto:
+            "Fallar inmediatamente al iniciar con un mensaje claro de cuál variable falta",
+          correcta: true,
+        },
+        { texto: "Generar automáticamente un secret aleatorio" },
+        { texto: "Desactivar la autenticación JWT temporalmente" },
+      ],
+      explicacion:
+        "El servidor debe validar variables críticas al iniciar (config validation). Si JWT_SECRET falta y el servidor arranca igual, los tokens generados dependen de 'undefined' — un bug de seguridad silencioso. Fallar rápido detecta problemas de configuración antes de que lleguen peticiones.",
+    },
+  ]}
+/>

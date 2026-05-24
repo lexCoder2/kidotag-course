@@ -1,0 +1,165 @@
+# WebSockets vs REST: ¿cuándo usar cada uno?
+
+HTTP/REST es perfecto para la mayoría de las operaciones de kidotag10. Pero
+cuando el ESP32 registra una asistencia, necesitamos que el dashboard del
+profesor se actualice al instante — sin que el cliente tenga que preguntar.
+
+## El problema del polling
+
+```javascript
+// ❌ Polling: el cliente pregunta cada N segundos
+setInterval(async () => {
+  const res = await fetch("/api/asistencias/hoy");
+  const { data } = await res.json();
+  actualizarDashboard(data);
+}, 3000); // pregunta cada 3 segundos
+
+// Problemas:
+// • 3 segundos de retraso mínimo
+// • Peticiones innecesarias cuando no hay cambios
+// • Carga en el servidor proporcional al número de usuarios
+```
+
+## WebSockets: conexión persistente bidireccional
+
+```
+REST:      Cliente → Servidor → Respuesta (conexión cerrada)
+           Cliente → Servidor → Respuesta (nueva conexión)
+           Cliente → Servidor → Respuesta (nueva conexión)
+
+WebSocket: Cliente ←──────────────────────→ Servidor
+                    (conexión persistente)
+                    Servidor puede enviar datos cuando quiera
+```
+
+## Comparativa
+
+| Criterio        | REST / HTTP          | WebSocket                   |
+| --------------- | -------------------- | --------------------------- |
+| Conexión        | Nueva por petición   | Persistente                 |
+| Dirección       | Cliente → Servidor   | Bidireccional               |
+| Latencia        | ~50-200ms            | ~5-20ms                     |
+| Uso de recursos | Bajo (sin datos)     | Conexión mantenida          |
+| Caso de uso     | CRUD, auth, archivos | Tiempo real, notificaciones |
+| kidotag10 usa   | API principal        | Asistencias en vivo         |
+
+## ¿Cuándo usa kidotag10 cada uno?
+
+```
+REST/HTTP:
+  POST /api/auth/login        — autenticación
+  GET  /api/alumnos           — listar alumnos
+  POST /api/alumnos           — crear alumno
+  GET  /api/asistencias/reporte — descargar Excel
+
+Socket.IO:
+  evento: "asistencia:nueva"  — ESP32 registra llegada/salida
+  evento: "anuncio:nuevo"     — director publica anuncio
+  evento: "estado:alumno"     — cambio de estado en tiempo real
+```
+
+<Mermaid titulo="Arquitectura tiempo real de kidotag10">
+  {`flowchart LR
+  ESP32[ESP32\nLector NFC] -->|HTTP POST /api/asistencias| API
+  API -->|io.emit asistencia:nueva| WS[Socket.IO Server]
+  WS -->|evento en tiempo real| D1[Dashboard Profesor A]
+  WS -->|evento en tiempo real| D2[Dashboard Profesor B]
+  D1 -.->|WS conectado| WS
+  D2 -.->|WS conectado| WS`}
+</Mermaid>
+
+<LibCard
+  nombre="socket.io"
+  version="4.7.2"
+  npm="socket.io"
+  categoria="backend"
+  docs="https://socket.io/docs/v4/"
+  descripcion="Librería de comunicación bidireccional en tiempo real. Usa WebSockets como transporte principal con fallback automático a HTTP long-polling."
+  porque="Socket.IO añade sobre WebSocket nativo: reconexión automática, soporte de rooms (una sala por escuela), nombres de eventos descriptivos, y fallback para entornos donde WebSocket está bloqueado."
+  usoEjemplo={`// src/index.js de kidotag10
+const { Server } = require('socket.io');
+const io = new Server(server, {
+  cors: { origin: process.env.FRONTEND_URL }
+});
+
+io.on('connection', (socket) => {
+const { escuelaId } = socket.handshake.query;
+socket.join(\`escuela:\${escuelaId}\`); // room por escuela
+});
+
+// En asistencia.controller.js:
+io.to(\`escuela:\${id}\`).emit('asistencia:nueva', registro);`}
+alternativas={[
+{ nombre: "ws (WebSocket nativo)", porque_no: "Sin rooms, sin reconexión automática, sin fallback HTTP. socket.io envuelve todos esos casos." },
+{ nombre: "Server-Sent Events", porque_no: "Solo servidor → cliente. El ESP32 también envía datos al servidor." },
+]}
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué kidotag10 NO usa polling para actualizar el dashboard de asistencias?",
+      opciones: [
+        { texto: "Porque Node.js no soporta setInterval" },
+        {
+          texto:
+            "Porque el polling consume recursos innecesarios y tiene latencia fija — con 50 profesores conectados y polling cada 3s = 1,000 peticiones/minuto aunque no haya cambios",
+          correcta: true,
+        },
+        { texto: "Porque Express no puede manejar múltiples peticiones" },
+        { texto: "Porque fetch no está disponible en React" },
+      ],
+      explicacion:
+        "El polling escala linealmente con el número de usuarios. Socket.IO solo transmite datos cuando hay cambios reales, reduciendo la carga del servidor y la latencia.",
+    },
+    {
+      pregunta:
+        "¿Qué es el WebSocket handshake y cómo difiere de una petición HTTP normal?",
+      opciones: [
+        { texto: "Es el proceso de autenticación de WebSocket" },
+        {
+          texto:
+            "Una petición HTTP de actualización (Upgrade: websocket) que convierte la conexión TCP en un canal bidireccional persistente",
+          correcta: true,
+        },
+        { texto: "Un protocolo completamente diferente a HTTP" },
+        { texto: "El proceso de compresión de mensajes WebSocket" },
+      ],
+      explicacion:
+        "WebSocket empieza como una petición HTTP con header Upgrade: websocket. El servidor acepta con 101 Switching Protocols. A partir de ahí, la misma conexión TCP se usa para mensajes bidireccionales sin overhead HTTP en cada mensaje.",
+    },
+    {
+      pregunta:
+        "¿Qué diferencia hay entre Server-Sent Events (SSE) y WebSockets?",
+      opciones: [
+        { texto: "Son sinónimos" },
+        {
+          texto:
+            "SSE es unidireccional (servidor → cliente) y más simple. WebSockets es bidireccional. kidotag10 necesita bidireccional: el cliente también emite eventos",
+          correcta: true,
+        },
+        { texto: "SSE es más rápido que WebSockets" },
+        { texto: "WebSockets no funciona en navegadores móviles" },
+      ],
+      explicacion:
+        "SSE sería suficiente si solo el servidor envia actualizaciones. En kidotag10, el cliente también necesita unirse a rooms (socket.join) y potencialmente emitir eventos. WebSockets/Socket.IO cubre ambos casos.",
+    },
+    {
+      pregunta:
+        "¿Qué fallback usa Socket.IO cuando WebSockets no está disponible?",
+      opciones: [
+        { texto: "Solo funciona con WebSockets nativos" },
+        {
+          texto:
+            "Long polling HTTP: el servidor mantiene la petición abierta hasta tener datos, luego el cliente hace una nueva petición inmediatamente",
+          correcta: true,
+        },
+        { texto: "Server-Sent Events" },
+        { texto: "AJAX polling estándar" },
+      ],
+      explicacion:
+        "Socket.IO comienza con long polling HTTP y hace upgrade a WebSockets cuando está disponible. Esto garantiza compatibilidad con proxies y redes corporativas que bloquean WebSockets. kidotag10 se beneficia de este fallback automático.",
+    },
+  ]}
+/>

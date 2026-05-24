@@ -1,0 +1,221 @@
+# Proyecto capstone: flujo NFC tiempo real
+
+Este es el flujo central de kidotag10: desde que el alumno pasa su tarjeta
+NFC hasta que el dashboard del profesor se actualiza en tiempo real.
+
+## Visión general del sistema
+
+```
+┌─────────────┐   NFC    ┌─────────────┐   HTTP POST  ┌─────────────┐
+│  Tarjeta    │ ──────→  │   ESP32     │ ──────────→  │  API REST   │
+│  del alumno │          │ Lector NFC  │              │  (Express)  │
+└─────────────┘          └─────────────┘              └──────┬──────┘
+                                                              │
+                                                    MongoDB   │  Socket.IO
+                                                    Guarda    │  Emite evento
+                                                              ↓
+                                                    ┌─────────────────┐
+                                                    │  Dashboard Web  │
+                                                    │  (React + SIO)  │
+                                                    └─────────────────┘
+```
+
+## El ESP32: leer UID y enviar al servidor
+
+```cpp
+// esp32/src/main.cpp (simplificado)
+#include <PN532_I2C.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+void registrarAsistencia(String uid) {
+  HTTPClient http;
+  http.begin("http://192.168.1.100:4000/api/asistencias");
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-ESP32-Key", ESP32_API_KEY); // ← clave de dispositivo
+
+  String body = "{\"uid_nfc\": \"" + uid + "\", \"escuelaId\": \"" + ESCUELA_ID + "\"}";
+  int code = http.POST(body);
+  Serial.println("HTTP " + String(code));
+  http.end();
+}
+```
+
+## El controlador: guardar y emitir
+
+```javascript
+// src/controllers/asistencia.controller.js
+async function registrarAsistencia(req, res) {
+  const { uid_nfc, escuelaId } = req.body;
+
+  // 1. Buscar el alumno por su UID
+  const alumno = await Alumno.findOne({ uid_nfc, escuela: escuelaId }).populate(
+    "grupo",
+    "nombre",
+  );
+
+  if (!alumno) {
+    return res.status(404).json({ ok: false, error: "ALUMNO_NO_REGISTRADO" });
+  }
+
+  // 2. Determinar si es entrada o salida
+  const ultima = await Asistencia.findOne({ alumno: alumno._id }).sort({
+    fecha: -1,
+  });
+  const presente = !ultima || !ultima.presente; // toggle
+
+  // 3. Guardar en MongoDB
+  const registro = await Asistencia.create({
+    alumno: alumno._id,
+    escuela: escuelaId,
+    presente,
+    fecha: new Date(),
+  });
+
+  // 4. Emitir en tiempo real a todos los conectados de esa escuela
+  const io = req.app.get("io");
+  io.to(`escuela:${escuelaId}`).emit("asistencia:nueva", {
+    alumno: { _id: alumno._id, nombre: alumno.nombre },
+    grupo: alumno.grupo?.nombre,
+    presente,
+    hora: registro.fecha.toLocaleTimeString("es-MX"),
+  });
+
+  res.status(201).json({ ok: true, data: registro });
+}
+```
+
+## El frontend: recibir y mostrar
+
+```jsx
+// web/src/pages/Dashboard.jsx
+import { useState, useEffect } from "react";
+import { useFetch } from "../hooks/useFetch";
+import { useAsistenciaRealTime } from "../hooks/useAsistenciaRealTime";
+import { useAuth } from "../context/AuthContext";
+
+function Dashboard() {
+  const { usuario } = useAuth();
+  const { datos: asistenciasHoy } = useFetch("/asistencias/hoy");
+  const [recientes, setRecientes] = useState([]);
+
+  // Cuando llegan datos iniciales, cargarlos en recientes
+  useEffect(() => {
+    if (asistenciasHoy) setRecientes(asistenciasHoy);
+  }, [asistenciasHoy]);
+
+  // Escuchar nuevas asistencias en tiempo real
+  useAsistenciaRealTime(usuario.escuelaId, (nueva) => {
+    setRecientes((prev) => [nueva, ...prev.slice(0, 49)]); // max 50
+  });
+
+  return (
+    <div>
+      <h1>Asistencias en tiempo real</h1>
+      <ul>
+        {recientes.map((a, i) => (
+          <li key={i} className={a.presente ? "presente" : "ausente"}>
+            <strong>{a.alumno.nombre}</strong>
+            <span>{a.grupo}</span>
+            <span>{a.presente ? "✅ Llegó" : "🔴 Salió"}</span>
+            <time>{a.hora}</time>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+<Mermaid titulo="Flujo completo NFC → Dashboard">
+{`sequenceDiagram
+  participant NFC as Tarjeta NFC
+  participant ESP as ESP32
+  participant API as Express API
+  participant DB as MongoDB
+  participant IO as Socket.IO
+  participant WEB as Dashboard React
+
+NFC->>ESP: UID leído (A1B2C3D4)
+ESP->>API: POST /api/asistencias {uid_nfc, escuelaId}
+API->>DB: Alumno.findOne({uid_nfc})
+DB-->>API: alumno encontrado
+API->>DB: Asistencia.create({...})
+DB-->>API: registro guardado
+API->>IO: io.to("escuela:...").emit("asistencia:nueva", datos)
+IO-->>WEB: evento recibido
+WEB->>WEB: setRecientes([nueva, ...prev])
+Note over WEB: UI actualizada <50ms`}
+
+</Mermaid>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "En el controlador, ¿por qué se usa 'toggle' para determinar si es entrada o salida en lugar de un campo explícito del ESP32?",
+      opciones: [
+        { texto: "El ESP32 no puede distinguir entre entrada y salida" },
+        {
+          texto:
+            "Simplifica el hardware — el mismo lector sirve para entrada y salida. La lógica de determinar qué es cada lectura queda en el servidor, que puede tomar decisiones más inteligentes (hora, secuencia)",
+          correcta: true,
+        },
+        { texto: "MongoDB no soporta campos booleanos" },
+        { texto: "Toggle es más eficiente en memoria" },
+      ],
+      explicacion:
+        "Con el toggle en el servidor, el ESP32 solo necesita enviar el UID. El servidor determina el contexto: si la última asistencia fue entrada, esta es salida. Además, el servidor podría añadir lógica de horario (ej: entrada solo antes de las 9am).",
+    },
+    {
+      pregunta:
+        "¿Cuál es el flujo completo desde que el ESP32 lee una tarjeta NFC hasta que el Dashboard del profesor se actualiza?",
+      opciones: [
+        { texto: "ESP32 emite evento Socket.IO directamente al navegador" },
+        {
+          texto:
+            "ESP32 hace HTTP POST a Express, que guarda en MongoDB y emite evento Socket.IO a la sala del grupo, React recibe el evento y actualiza la lista",
+          correcta: true,
+        },
+        {
+          texto: "El navegador hace polling al ESP32 para ver nuevas lecturas",
+        },
+        { texto: "ESP32 escribe directamente en MongoDB" },
+      ],
+      explicacion:
+        "Flujo kidotag: 1) ESP32 lee UID y hace POST /api/asistencias; 2) Express valida, guarda en MongoDB; 3) io.to(grupoId).emit('asistencia:nueva', data); 4) React en el Dashboard recibe el evento y llama setAsistencias([...prev, nueva]). Sin reload de página.",
+    },
+    {
+      pregunta:
+        "¿Cómo debe formatear el ESP32 la petición HTTP POST al servidor kidotag?",
+      opciones: [
+        { texto: "Texto plano con el UID separado por comas" },
+        {
+          texto:
+            "JSON con Content-Type: application/json y body { uid, escuelaId } — Express lo parsea con express.json()",
+          correcta: true,
+        },
+        { texto: "Formulario URL-encoded" },
+        { texto: "El UID en el query string: /api/asistencias?uid=ABC123" },
+      ],
+      explicacion:
+        'El ESP32 con HTTPClient envía: http.addHeader(\'Content-Type\', \'application/json\'); http.POST(\'{"uid":"ABC123","escuelaId":"64f..."}\'); Express lo recibe como req.body.uid y req.body.escuelaId gracias a express.json() middleware.',
+    },
+    {
+      pregunta:
+        "¿Qué debe mostrar la interfaz del profesor cuando el ESP32 pierde conexión o el servidor no responde?",
+      opciones: [
+        { texto: "Nada, esperar a que vuelva la conexión" },
+        {
+          texto:
+            "Indicar el estado de conexión del Socket.IO en tiempo real: 'Conectado' (verde) o 'Sin conexión' (rojo), para que el profesor sepa si las lecturas NFC se están registrando",
+          correcta: true,
+        },
+        { texto: "Recargar la página automáticamente" },
+        { texto: "Bloquear la UI hasta que vuelva la conexión" },
+      ],
+      explicacion:
+        "Socket.IO emite eventos 'connect' y 'disconnect'. En kidotag, el Dashboard del profesor debe escucharlos y mostrar un indicador visual. Si el profesor marca 30 asistencias mientras el servidor estaba caído, podrían no registrarse.",
+    },
+  ]}
+/>

@@ -1,0 +1,385 @@
+# Props y composición de componentes
+
+Las props son la manera en que los componentes React se comunican.
+La composición permite construir UIs complejas combinando componentes simples.
+
+## Props básicas
+
+```jsx
+// Definir un componente con props
+function AlumnoCard({ nombre, presente, hora }) {
+  return (
+    <div className={`alumno-card ${presente ? "presente" : "ausente"}`}>
+      <h3>{nombre}</h3>
+      <span>{presente ? "✅ Presente" : "🔴 Ausente"}</span>
+      <small>{hora}</small>
+    </div>
+  );
+}
+
+// Usar el componente con props
+<AlumnoCard nombre="Ana García" presente={true} hora="08:23" />;
+```
+
+## Props especiales
+
+```jsx
+// children — contenido entre las etiquetas
+function Card({ titulo, children }) {
+  return (
+    <div className="card">
+      <h2>{titulo}</h2>
+      {children}
+    </div>
+  );
+}
+
+// Uso:
+<Card titulo="Asistencias de hoy">
+  <AlumnoCard nombre="Ana" presente={true} hora="08:23" />
+  <AlumnoCard nombre="Luis" presente={false} hora="" />
+</Card>;
+```
+
+## Pasar funciones como props (callbacks)
+
+```jsx
+// kidotag10 pattern: lista + acción
+function ListaAlumnos({ alumnos, onSeleccionar }) {
+  return (
+    <ul>
+      {alumnos.map((a) => (
+        <li key={a._id}>
+          {a.nombre}
+          <button onClick={() => onSeleccionar(a)}>Ver detalle</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// El padre controla qué pasa al seleccionar
+function Dashboard() {
+  const [seleccionado, setSeleccionado] = useState(null);
+  return (
+    <>
+      <ListaAlumnos
+        alumnos={alumnos}
+        onSeleccionar={setSeleccionado} // ← función como prop
+      />
+      {seleccionado && <DetalleAlumno alumno={seleccionado} />}
+    </>
+  );
+}
+```
+
+## Composición vs herencia
+
+React usa **composición** en lugar de herencia de clases para reutilizar lógica:
+
+```jsx
+// ✅ Composición — combinar componentes
+function PaginaConSidebar({ sidebar, contenido }) {
+  return (
+    <div className="layout">
+      <aside>{sidebar}</aside>
+      <main>{contenido}</main>
+    </div>
+  );
+}
+
+// Uso flexible:
+<PaginaConSidebar sidebar={<MenuNavegacion />} contenido={<ListaAlumnos />} />;
+```
+
+<Callout variante="tip" titulo="Regla de las props: flujo unidireccional">
+  Las props fluyen siempre de padre a hijo. Si un hijo necesita modificar datos
+  del padre, el padre le pasa una función callback como prop. Este patrón se
+  llama "lifting state up".
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "En el componente ListaAlumnos, ¿por qué onSeleccionar se pasa como prop en lugar de definirla dentro del componente?",
+      opciones: [
+        {
+          texto:
+            "Porque las funciones no se pueden definir dentro de componentes",
+        },
+        {
+          texto:
+            "Para que ListaAlumnos sea reutilizable — distintos padres pueden decidir qué hacer al seleccionar un alumno (ver detalle, editar, eliminar)",
+          correcta: true,
+        },
+        { texto: "Por razones de rendimiento" },
+        { texto: "React requiere que todas las funciones vengan de props" },
+      ],
+      explicacion:
+        "El componente ListaAlumnos solo sabe mostrar una lista. Qué pasa al seleccionar depende del contexto de uso. Al recibir onSeleccionar como prop, el mismo componente sirve para un dashboard (ver detalle), para un formulario (asignar a grupo), etc.",
+    },
+    {
+      pregunta:
+        "¿Pueden las props de un componente hijo ser modificadas por ese componente hijo?",
+      opciones: [
+        { texto: "Sí, el componente puede modificar sus propias props" },
+        {
+          texto:
+            "No — las props son de solo lectura. El hijo puede leerlas pero no mutarlas; para comunicar hacia arriba se usa una función callback pasada como prop",
+          correcta: true,
+        },
+        { texto: "Sí, pero solo las props de tipo objeto" },
+        { texto: "Depende de si el padre usa useState" },
+      ],
+      explicacion:
+        "En kidotag, <TarjetaAlumno alumno={datos} /> puede leer datos.nombre pero nunca debe hacer alumno.nombre = 'otro'. Si el hijo necesita cambiar datos del padre, el padre pasa una función: <TarjetaAlumno onEditar={(nuevoNombre) => actualizarAlumno(id, nuevoNombre)} />.",
+    },
+    {
+      pregunta: "¿Qué es la prop 'children' en React?",
+      opciones: [
+        { texto: "El número de hijos que tiene un componente" },
+        {
+          texto:
+            "El contenido entre las etiquetas de apertura y cierre del componente: <Card>{contenido}</Card> — children es {contenido}",
+          correcta: true,
+        },
+        { texto: "Un array de los componentes hijo importados" },
+        {
+          texto: "Una prop especial que solo funciona con componentes de clase",
+        },
+      ],
+      explicacion:
+        "En kidotag: <Modal titulo='Nuevo alumno'><FormularioAlumno /></Modal>. Dentro de Modal, props.children es <FormularioAlumno />. Esto permite que Modal sea reutilizable con cualquier contenido.",
+    },
+    {
+      pregunta:
+        "¿Cuándo conviene extraer un componente en lugar de añadir más JSX al existente?",
+      opciones: [
+        { texto: "Siempre que el componente tenga más de 50 líneas" },
+        {
+          texto:
+            "Cuando el fragmento se reutiliza en múltiples lugares o cuando tiene su propia lógica de estado que puede aislarse",
+          correcta: true,
+        },
+        { texto: "Solo cuando hay errores de rendimiento" },
+        { texto: "Nunca — menos componentes es mejor" },
+      ],
+      explicacion:
+        "En kidotag, TarjetaAlumno se usa en el dashboard, en el buscador y en la lista de grupo — extraerlo evita triplicar el código. Si un fragmento aparece solo en un lugar y no tiene lógica propia, puede quedarse inline.",
+    },
+  ]}
+/>
+
+## Practica: construye una tarjeta de alumno
+
+Modifica el componente `AlumnoCard` para mostrar un ícono diferente según el
+nivel del alumno (primaria/secundaria). Observa cómo las props controlan todo.
+
+<CodePlayground
+  titulo="kidotag-frontend — L5: Composicion con ListaAlumnos"
+  plantilla="react"
+  entryFile="/ListaAlumnos.jsx"
+  objetivo="Extraer la lista de alumnos a un componente hijo reutilizable que recibe datos y callbacks como props."
+  archivos={{
+    '/styles.css': { code: `body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f8fafc;
+}
+.app {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+.app h1 {
+  color: #1e293b;
+  font-size: 1.4rem;
+  border-bottom: 2px solid #274c77;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+.badge-regular {
+  background: #fef9c3;
+  color: #854d0e;
+}
+.badge-riesgo {
+  background: #fee2e2;
+  color: #b91c1c;
+}`, readOnly: true },
+    '/TarjetaAlumno.jsx': { code: `function getBadge(a) {
+  if (a >= 90) return { clase: "badge-ok", texto: "Excelente" };
+  if (a >= 75) return { clase: "badge-regular", texto: "Regular" };
+  return { clase: "badge-riesgo", texto: "En riesgo" };
+}
+export default function TarjetaAlumno({ alumno }) {
+  const badge = getBadge(alumno.asistencia);
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "10px 14px",
+        borderRadius: 8,
+        marginBottom: 8,
+        background: alumno.presente ? "white" : "#fef9f9",
+        border: "1px solid " + (alumno.presente ? "#e2e8f0" : "#fecaca"),
+      }}
+    >
+      <div>
+        <strong>{alumno.nombre}</strong>
+        <span style={{ marginLeft: 8, color: "#64748b", fontSize: 13 }}>{alumno.grado}</span>
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <span className={"badge " + badge.clase}>{badge.texto}</span>
+        <span style={{ fontSize: 18 }}>{alumno.presente ? "✓" : "✗"}</span>
+      </div>
+    </div>
+  );
+}`, readOnly: true },
+    '/api.js': { code: `// api.js — Simula llamadas HTTP al servidor KidoTag
+function delay(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+export async function fetchAlumnos() {
+  await delay(800);
+  return [
+    {
+      id: 1,
+      nombre: "Ana Garcia",
+      grado: "3A",
+      asistencia: 95,
+      presente: true,
+    },
+    {
+      id: 2,
+      nombre: "Luis Mendez",
+      grado: "3A",
+      asistencia: 78,
+      presente: false,
+    },
+    {
+      id: 3,
+      nombre: "Mia Torres",
+      grado: "4B",
+      asistencia: 62,
+      presente: false,
+    },
+    {
+      id: 4,
+      nombre: "Carlos Ruiz",
+      grado: "4B",
+      asistencia: 100,
+      presente: true,
+    },
+  ];
+}
+
+export async function guardarAsistencia(alumnos) {
+  await delay(300);
+  return { ok: true, fecha: new Date().toLocaleDateString("es-MX") };
+}`, readOnly: true },
+    '/App.jsx': { code: `import { useState, useEffect } from "react";
+import "./styles.css";
+import ListaAlumnos from "./ListaAlumnos";
+import { fetchAlumnos, guardarAsistencia } from "./api";
+
+export default function App() {
+  const [alumnos, setAlumnos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [mensaje, setMensaje] = useState("");
+
+  useEffect(() => {
+    fetchAlumnos().then((d) => {
+      setAlumnos(d);
+      setLoading(false);
+    });
+  }, []);
+
+  const togglePresente = (id) =>
+    setAlumnos((prev) => prev.map((a) => (a.id === id ? { ...a, presente: !a.presente } : a)));
+
+  const guardar = async () => {
+    const r = await guardarAsistencia(alumnos);
+    setMensaje("Guardado: " + r.fecha);
+    setTimeout(() => setMensaje(""), 3000);
+  };
+
+  if (loading)
+    return (
+      <div className="app">
+        <h1>KidoTag</h1>
+        <p style={{ color: "#64748b" }}>Cargando...</p>
+      </div>
+    );
+
+  return (
+    <div className="app">
+      <h1>KidoTag — Asistencia</h1>
+      <ListaAlumnos
+        alumnos={alumnos}
+        onToggle={togglePresente}
+        onGuardar={guardar}
+        mensaje={mensaje}
+      />
+    </div>
+  );
+}`, readOnly: true },
+    '/ListaAlumnos.jsx': `// ListaAlumnos.jsx — Componente de composicion (NUEVA)
+// Extrae el renderizado de la lista de App para hacerlo reutilizable
+import TarjetaAlumno from "./TarjetaAlumno";
+
+// Props: alumnos (datos), onToggle (accion), onGuardar (accion), mensaje (estado)
+export default function ListaAlumnos({ alumnos, onToggle, onGuardar, mensaje }) {
+  const presentes = alumnos.filter((a) => a.presente).length;
+
+  return (
+    <section>
+      <p style={{ color: "#64748b", fontSize: 13, margin: "0 0 1rem" }}>
+        {presentes} de {alumnos.length} presentes
+      </p>
+      {alumnos.map((a) => (
+        <div key={a.id} onClick={() => onToggle(a.id)} style={{ cursor: "pointer" }}>
+          <TarjetaAlumno alumno={a} />
+        </div>
+      ))}
+      <button
+        onClick={onGuardar}
+        style={{
+          marginTop: "1rem",
+          padding: "8px 20px",
+          background: "#274c77",
+          color: "white",
+          border: "none",
+          borderRadius: 6,
+          cursor: "pointer",
+        }}
+      >
+        Guardar asistencia
+      </button>
+      {mensaje && <p style={{ color: "#15803d", fontWeight: 600 }}>{mensaje}</p>}
+    </section>
+  );
+}`,
+}}
+pasosIncrementales={[
+"Ejecuta y verifica que la lista funciona igual que antes — la logica sigue en App.jsx.",
+"Agrega una prop 'titulo: string' a ListaAlumnos y muéstrala como un h2 dentro de la seccion.",
+"Agrega una prop 'soloPresentes: boolean'. Cuando sea true, filtra y muestra solo los presentes.",
+"Agrega un prop 'onTodosPresentes' y un boton 'Todos presentes' que la llame al hacer clic.",
+]}
+retoFinal="Crea un componente ResumenGrupo que reciba alumnos y muestre: total, presentes, ausentes y el nombre del alumno con mayor asistencia. Usalo en App.jsx arriba de ListaAlumnos."
+/>

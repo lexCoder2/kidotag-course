@@ -1,0 +1,181 @@
+# Servidor Socket.IO en kidotag10
+
+Veamos cómo se configura e integra Socket.IO en la API de kidotag10.
+
+## Integración con Express
+
+Socket.IO no se monta como middleware de Express directamente — se adjunta al
+**servidor HTTP** subyacente:
+
+```javascript
+// src/index.js
+const http = require("http");
+const { Server } = require("socket.io");
+const app = require("./app"); // Express app
+
+// Crear servidor HTTP a partir de Express
+const server = http.createServer(app);
+
+// Crear servidor Socket.IO adjunto al HTTP
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL,
+    methods: ["GET", "POST"],
+  },
+});
+
+// Escuchar en el mismo puerto que Express
+server.listen(PORT);
+```
+
+<Callout variante="info" titulo="¿Por qué http.createServer y no app.listen?">
+  `app.listen()` internamente crea un servidor HTTP y llama a `server.listen()`.
+  Cuando usamos Socket.IO, necesitamos acceso al servidor HTTP para adjuntar el
+  WebSocket — por eso creamos el server manualmente con
+  `http.createServer(app)`.
+</Callout>
+
+## Sistema de rooms (salas)
+
+kidotag10 usa una **room por escuela** para que los eventos solo lleguen a
+los usuarios de esa escuela:
+
+```javascript
+// src/index.js
+io.on("connection", (socket) => {
+  const { escuelaId } = socket.handshake.query;
+
+  if (escuelaId) {
+    socket.join(`escuela:${escuelaId}`);
+    console.log(`Socket ${socket.id} unido a escuela:${escuelaId}`);
+  }
+
+  socket.on("disconnect", () => {
+    console.log(`Socket ${socket.id} desconectado`);
+    // Socket.IO limpia los rooms automáticamente al desconectar
+  });
+});
+```
+
+## Emitir eventos desde los controladores
+
+El objeto `io` necesita ser accesible desde los controladores. kidotag10 lo
+pasa via `req.app.get('io')`:
+
+```javascript
+// src/index.js — guardar io en la app de Express
+app.set("io", io);
+
+// src/controllers/asistencia.controller.js — usar io
+async function registrarAsistencia(req, res) {
+  const registro = await Asistencia.create({ ...req.body });
+
+  // Notificar en tiempo real a todos los de esa escuela
+  const io = req.app.get("io");
+  io.to(`escuela:${registro.escuela}`).emit("asistencia:nueva", {
+    alumno: registro.alumno,
+    presente: registro.presente,
+    hora: registro.fecha,
+  });
+
+  res.status(201).json({ ok: true, data: registro });
+}
+```
+
+## Flujo completo: ESP32 → servidor → dashboard
+
+```
+1. Alumno pasa tarjeta NFC en el ESP32
+2. ESP32: POST /api/asistencias { uid_nfc, escuelaId }
+3. Controlador: guarda registro en MongoDB
+4. Controlador: io.to("escuela:64ab1...").emit("asistencia:nueva", datos)
+5. Todos los profesores conectados a esa escuela reciben el evento
+6. React actualiza el dashboard en tiempo real
+```
+
+<Mermaid titulo="Eventos Socket.IO en kidotag10">
+{`sequenceDiagram
+  participant ESP as ESP32
+  participant API as Express API
+  participant IO as Socket.IO Server
+  participant P1 as Profesor A (conectado)
+  participant P2 as Profesor B (conectado)
+
+Note over P1,P2: Ambos en room "escuela:64ab1..."
+ESP->>API: POST /api/asistencias { uid_nfc }
+API->>API: Guarda en MongoDB
+API->>IO: io.to("escuela:64ab1...").emit("asistencia:nueva", datos)
+IO-->>P1: evento "asistencia:nueva"
+IO-->>P2: evento "asistencia:nueva"`}
+
+</Mermaid>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué kidotag10 usa rooms de Socket.IO en lugar de emitir a todos los clientes conectados?",
+      opciones: [
+        { texto: "Porque Socket.IO no permite emitir a todos" },
+        {
+          texto:
+            "Para que los eventos de asistencia solo lleguen a los usuarios de la escuela correcta, no a todas las escuelas del sistema",
+          correcta: true,
+        },
+        { texto: "Para mejorar el rendimiento del servidor" },
+        {
+          texto: "Porque el ESP32 no puede conectarse a Socket.IO directamente",
+        },
+      ],
+      explicacion:
+        "kidotag10 puede ser multi-escuela. Sin rooms, un evento de la Escuela A llegaría a los profesores de la Escuela B — un problema de privacidad y ruido.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre el objeto io y el objeto socket en Socket.IO del servidor?",
+      opciones: [
+        { texto: "Son sinónimos — ambos representan el servidor" },
+        {
+          texto:
+            "io es el servidor global (todos los clientes); socket es la conexión individual de un cliente específico",
+          correcta: true,
+        },
+        { texto: "socket es el servidor; io es el cliente" },
+        { texto: "io maneja HTTP; socket maneja WebSockets" },
+      ],
+      explicacion:
+        "io.emit() → todos los clientes. socket.emit() → solo ese cliente. socket.to('room').emit() → todos en esa room excepto el emisor. En kidotag10, al guardar una asistencia, io.to(escuelaId).emit() notifica a todos los profesores de esa escuela.",
+    },
+    {
+      pregunta:
+        "¿Qué event de Socket.IO se dispara cuando un cliente se desconecta (cierra la app, pierde red)?",
+      opciones: [
+        { texto: "'close'" },
+        {
+          texto: "'disconnect' en el evento del socket individual del servidor",
+          correcta: true,
+        },
+        { texto: "'offline'" },
+        { texto: "'error'" },
+      ],
+      explicacion:
+        "socket.on('disconnect', () => { ... }) se dispara automáticamente cuando el cliente se desconecta. En kidotag10, el servidor puede limpiar estado: registrar la desconexion, quitar al usuario de listas de conectados, etc.",
+    },
+    {
+      pregunta:
+        "¿Para qué sirven los namespaces en Socket.IO y cómo se diferencian de los rooms?",
+      opciones: [
+        { texto: "Son sinónimos en Socket.IO" },
+        {
+          texto:
+            "Namespaces son canales separados en el mismo servidor (/admin, /public) con sus propios eventos; rooms son subgrupos dentro de un namespace",
+          correcta: true,
+        },
+        { texto: "Los rooms son más eficientes que los namespaces" },
+        { texto: "Los namespaces requieren múltiples servidores" },
+      ],
+      explicacion:
+        "En kidotag10 podrías tener el namespace /asistencia para tiempo real y /admin para notificaciones administrativas. Rooms dentro de /asistencia podrían ser por escuelaId. Esto mantiene los tipos de eventos organizados.",
+    },
+  ]}
+/>

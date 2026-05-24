@@ -1,0 +1,162 @@
+# El patrón Dashboard en kidotag10
+
+El dashboard es el corazón del web de kidotag10. Integra autenticación,
+tiempo real, fetch de datos y renderizado condicional por rol.
+
+## Arquitectura del Dashboard
+
+```
+App
+└── AuthProvider
+    └── BrowserRouter
+        └── PrivateRoute (requiere auth)
+            └── LayoutDashboard (sidebar + outlet)
+                ├── Dashboard (home)
+                │   ├── ResumenAsistencias (useFetch)
+                │   └── ListaReciente (useAsistenciaRealTime)
+                ├── Alumnos
+                │   ├── ListaAlumnos (useFetch)
+                │   └── DetalleAlumno (useParams + useFetch)
+                └── Grupos
+                    └── ListaGrupos (useFetch)
+```
+
+## Container / Presentational pattern
+
+```jsx
+// Container: lógica de datos
+function AlumnosContainer() {
+  const { usuario } = useAuth();
+  const { datos, cargando, error } = useFetch("/alumnos");
+  const [seleccionado, setSeleccionado] = useState(null);
+
+  if (cargando) return <Spinner />;
+  if (error) return <MensajeError texto={error} />;
+
+  return (
+    <AlumnosView
+      alumnos={datos}
+      rolUsuario={usuario.rol}
+      onSeleccionar={setSeleccionado}
+    />
+  );
+}
+
+// Presentational: solo renderizado
+function AlumnosView({ alumnos, rolUsuario, onSeleccionar }) {
+  return (
+    <div>
+      <h1>Alumnos ({alumnos.length})</h1>
+      {rolUsuario === "admin" && <BotonNuevoAlumno />}
+      <ListaAlumnos alumnos={alumnos} onSeleccionar={onSeleccionar} />
+    </div>
+  );
+}
+```
+
+## Renderizado según el rol
+
+```jsx
+// kidotag10 muestra diferentes opciones según el rol
+function Sidebar() {
+  const { usuario } = useAuth();
+
+  return (
+    <nav>
+      <Link to="/dashboard">Inicio</Link>
+
+      {/* Solo profesores y admin */}
+      {["profesor", "admin"].includes(usuario.rol) && (
+        <>
+          <Link to="/alumnos">Alumnos</Link>
+          <Link to="/asistencias">Asistencias</Link>
+        </>
+      )}
+
+      {/* Solo admin */}
+      {usuario.rol === "admin" && <Link to="/escuela">Configuración</Link>}
+
+      {/* Solo tutores */}
+      {usuario.rol === "tutor" && <Link to="/mis-hijos">Mis hijos</Link>}
+    </nav>
+  );
+}
+```
+
+<Callout
+  variante="info"
+  titulo="Estado del tiempo real se combina con datos iniciales"
+>
+  El patrón de kidotag10: cargar los datos del día con `useFetch` al montar el
+  componente, y luego actualizar con los eventos de Socket.IO. `useFetch` provee
+  el estado inicial; `useAsistenciaRealTime` agrega eventos al estado en tiempo
+  real.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Cuál es la ventaja del patrón Container/Presentational en React?",
+      opciones: [
+        { texto: "Hace los componentes más rápidos" },
+        {
+          texto:
+            "Separa la lógica de datos del renderizado — el componente presentational es fácil de testear y reutilizar porque no depende de fetch ni de context",
+          correcta: true,
+        },
+        { texto: "Reduce el número de re-renders" },
+        { texto: "Es requerido por React Router" },
+      ],
+      explicacion:
+        "Un componente presentational solo recibe props y renderiza. Se puede probar pasándole props directamente, sin mockear fetch ni context. El container encapsula la complejidad de obtener y transformar los datos.",
+    },
+    {
+      pregunta:
+        "¿Por qué el Dashboard de kidotag separa el Container (datos) del componente de vista?",
+      opciones: [
+        { texto: "Por requisito de TypeScript" },
+        {
+          texto:
+            "Para que el componente de vista sea reutilizable y testeable sin mock de la API — el mismo UI puede funcionar para admin y para profesor",
+          correcta: true,
+        },
+        { texto: "React requiere esta separación" },
+        { texto: "Para reducir el tamaño del bundle" },
+      ],
+      explicacion:
+        "DashboardContainer obtiene datos de la API y del AuthContext. DashboardView recibe alumnos, loading, error como props y los renderiza. Se puede usar DashboardView en Storybook o tests con datos fijos sin necesitar el servidor.",
+    },
+    {
+      pregunta: "¿Qué es 'lifting state up' y cuándo se usa en kidotag?",
+      opciones: [
+        { texto: "Mover el estado a una variable global de JavaScript" },
+        {
+          texto:
+            "Subir el estado al ancestro común más cercano cuando dos componentes hermanos necesitan compartir o sincronizar ese estado",
+          correcta: true,
+        },
+        { texto: "Usar Redux para el estado global" },
+        { texto: "Pasar el estado como prop a todos los componentes" },
+      ],
+      explicacion:
+        "En kidotag: el Filtro y la ListaAlumnos son hermanos. El estado del filtro sube al componente padre (Dashboard), que filtra los alumnos y pasa la lista filtrada a ListaAlumnos. Así ambos componentes están sincronizados.",
+    },
+    {
+      pregunta:
+        "¿Cuándo usarías useReducer en lugar de useState en el Dashboard de kidotag?",
+      opciones: [
+        { texto: "Nunca — useState siempre es suficiente" },
+        {
+          texto:
+            "Cuando el estado tiene múltiples sub-valores que cambian juntos (loading, error, data, filtro) y las transiciones son complejas — useReducer centraliza la lógica",
+          correcta: true,
+        },
+        { texto: "useReducer es más rápido que useState" },
+        { texto: "Cuando el componente tiene más de 3 estados" },
+      ],
+      explicacion:
+        "Con useState: cuatro setters separados. Con useReducer: dispatch({ type: 'FETCH_SUCCESS', payload: alumnos }) actualiza loading, error y data en una sola transición. Más predecible cuando los cambios de estado están relacionados.",
+    },
+  ]}
+/>

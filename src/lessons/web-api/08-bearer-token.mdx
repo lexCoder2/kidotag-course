@@ -1,0 +1,331 @@
+# Peticiones autenticadas con Bearer token
+
+Los endpoints protegidos de kidotag10 requieren el JWT en el header
+`Authorization: Bearer <token>`.
+
+## Cómo añadir el token a fetch
+
+```javascript
+const token = localStorage.getItem("token");
+
+const res = await fetch(`${BASE_URL}/alumnos`, {
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`, // ← el header clave
+  },
+});
+```
+
+## Función helper: fetchAuth
+
+```javascript
+// src/utils/fetchAuth.js (kidotag10 web)
+const BASE = import.meta.env.VITE_API_URL;
+
+async function fetchAuth(path, options = {}) {
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(`${BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    },
+  });
+
+  if (res.status === 401) {
+    // Token expirado — limpiar sesión
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+    return;
+  }
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Error del servidor");
+  return json.data;
+}
+
+// Uso:
+const alumnos = await fetchAuth("/alumnos");
+const nuevo = await fetchAuth("/alumnos", {
+  method: "POST",
+  body: JSON.stringify({ nombre: "Ana García" }),
+});
+```
+
+## ¿Por qué 401 redirige al login?
+
+```
+Token JWT expirado → servidor devuelve 401
+fetchAuth detecta 401 → localStorage.removeItem('token')
+fetchAuth redirige a /login
+Usuario inicia sesión de nuevo → nuevo token de 7 días
+```
+
+<Callout variante="info" titulo="Bearer vs Cookie">
+  kidotag10 usa Bearer en `localStorage` por simplicidad. En apps de mayor
+  seguridad, se usarían cookies HttpOnly (que no son accesibles via JavaScript).
+  Ver la lección de almacenamiento de tokens en el módulo JWT.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Cuál es el formato correcto del header de autorización en kidotag10?",
+      opciones: [
+        { texto: "Authorization: JWT eyJhbGci..." },
+        { texto: "Authorization: Bearer eyJhbGci...", correcta: true },
+        { texto: "X-Auth-Token: eyJhbGci..." },
+        { texto: "Token: Bearer eyJhbGci..." },
+      ],
+      explicacion:
+        "El estándar Bearer Token (RFC 6750) define el formato 'Authorization: Bearer <token>'. El backend de kidotag10 extrae el token haciendo req.headers.authorization.split(' ')[1] — espera exactamente ese formato.",
+    },
+    {
+      pregunta:
+        "¿Dónde guarda kidotag el token para incluirlo en cada petición autenticada?",
+      opciones: [
+        { texto: "En una variable global de JavaScript" },
+        {
+          texto:
+            "En localStorage y se lee al hacer cada petición: const token = localStorage.getItem('token')",
+          correcta: true,
+        },
+        { texto: "El navegador lo envía automáticamente" },
+        { texto: "En el estado de Redux" },
+      ],
+      explicacion:
+        "Al hacer login exitoso, kidotag guarda el token en localStorage. Cada función de servicio que hace fetch a rutas protegidas lee el token y lo incluye en el header Authorization.",
+    },
+    {
+      pregunta:
+        "¿Qué hace un interceptor de peticiones y cómo mejora el código de kidotag?",
+      opciones: [
+        { texto: "Bloquea peticiones no autorizadas en el cliente" },
+        {
+          texto:
+            "Una función fetchAuth() centralizada que añade el header Authorization automáticamente, evitando repetir el código en cada servicio",
+          correcta: true,
+        },
+        {
+          texto:
+            "Intercepta las respuestas del servidor antes de llegar al código",
+        },
+        { texto: "Es una característica solo de axios, no de fetch" },
+      ],
+      explicacion:
+        "Sin interceptor: cada fetch repite headers: { Authorization: 'Bearer ' + token, Content-Type: 'application/json' }. Con fetchAuth() centralizado: solo defines el header una vez. Si cambia el formato del token, solo cambias un lugar.",
+    },
+    {
+      pregunta:
+        "¿Qué debe hacer kidotag cuando el servidor responde con 401 en una ruta autenticada?",
+      opciones: [
+        { texto: "Ignorar el error y continuar" },
+        {
+          texto:
+            "Borrar el token del localStorage y redirigir al login — el token expiró o es inválido",
+          correcta: true,
+        },
+        { texto: "Solicitar un nuevo token automáticamente" },
+        {
+          texto:
+            "Mostrar el error 401 al usuario y dejar que haga clic en logout",
+        },
+      ],
+      explicacion:
+        "Un 401 en ruta autenticada significa que el token ya no es válido (expiró o fue manipulado). La mejor UX es limpiar el estado de auth y redirigir al login. En kidotag: localStorage.removeItem('token'); navigate('/login').",
+    },
+  ]}
+/>
+
+## Practica: fetchAuth con manejo de 401
+
+<CodePlayground
+  titulo="Bearer Token — fetchAuth simulado"
+  codigo={`import { useState } from "react";
+
+// ── Simula el backend de kidotag10 ──────────────────────────
+async function mockApi(path, options = {}) {
+  await new Promise((r) => setTimeout(r, 500));
+  const auth = options.headers?.Authorization || "";
+  const [, token] = auth.split(" ");
+
+  // Tokens válidos simulados
+  const TOKENS = {
+    "token-admin": { rol: "admin", nombre: "Ana García" },
+    "token-profesor": { rol: "profesor", nombre: "Luis López" },
+  };
+
+  if (path === "/auth/login") {
+    const { email, password } = JSON.parse(options.body || "{}");
+    if (email === "admin@kidotag.mx" && password === "1234") {
+      return { ok: true, data: { token: "token-admin", rol: "admin" } };
+    }
+    return { ok: false, status: 401, data: { error: "Credenciales inválidas" } };
+  }
+
+  if (!token || !TOKENS[token]) {
+    return { ok: false, status: 401, data: { error: "Token inválido o expirado" } };
+  }
+
+  if (path === "/alumnos") {
+    return {
+      ok: true,
+      data: [
+        { nombre: "Mia Torres", grado: "3°A" },
+        { nombre: "Pedro Ruiz", grado: "6°B" },
+      ],
+    };
+  }
+
+  return { ok: false, status: 404, data: { error: "Ruta no encontrada" } };
+}
+
+// ── fetchAuth: función utilitaria de kidotag10 ──────────────
+async function fetchAuth(path, options = {}, token) {
+  const res = await mockApi(path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token && { Authorization: \`Bearer \${token}\` }),
+      ...options.headers,
+    },
+  });
+
+  if (res.status === 401) {
+    // En kidotag10 real: localStorage.removeItem('token') + redirect
+    throw new Error("401: sesión expirada — redirigir a /login");
+  }
+  if (!res.ok) throw new Error(res.data?.error || "Error del servidor");
+  return res.data;
+}
+
+export default function App() {
+  const [token, setToken] = useState("");
+  const [usuario, setUsuario] = useState(null);
+  const [resultado, setResultado] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function login() {
+    setLoading(true);
+    setError("");
+    setResultado(null);
+    try {
+      const data = await fetchAuth(
+        "/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({ email: "admin@kidotag.mx", password: "1234" }),
+        },
+        "",
+      );
+      setToken(data.token);
+      setUsuario(data);
+    } catch (e) {
+      setError(e.message);
+    }
+    setLoading(false);
+  }
+
+  async function getAlumnos() {
+    setLoading(true);
+    setError("");
+    setResultado(null);
+    try {
+      const data = await fetchAuth("/alumnos", {}, token);
+      setResultado(data);
+    } catch (e) {
+      setError(e.message);
+    }
+    setLoading(false);
+  }
+
+  function expireToken() {
+    setToken("token-invalido");
+    setError("");
+  }
+
+  const btnS = (bg) => ({
+    padding: "7px 14px",
+    background: bg,
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+    fontWeight: 600,
+    opacity: loading ? 0.6 : 1,
+  });
+
+  return (
+    <div style={{ fontFamily: "sans-serif", padding: 16, maxWidth: 400 }}>
+      <h2>fetchAuth — Bearer token</h2>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <button onClick={login} style={btnS("#274c77")} disabled={loading}>
+          1. Login
+        </button>
+        <button onClick={getAlumnos} style={btnS("#15803d")} disabled={loading}>
+          2. GET /alumnos {token ? "🔑" : "🚫"}
+        </button>
+        <button onClick={expireToken} style={btnS("#92400e")} disabled={loading}>
+          Simular token expirado
+        </button>
+      </div>
+
+      {token && !error && (
+        <div
+          style={{
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            borderRadius: 6,
+            padding: "6px 10px",
+            marginBottom: 10,
+            fontSize: 12,
+          }}
+        >
+          🔑 Token: <code>{token}</code>
+          {usuario && <span> (rol: {usuario.rol})</span>}
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: 6,
+            padding: "8px 12px",
+            marginBottom: 10,
+            color: "#b91c1c",
+            fontSize: 13,
+          }}
+        >
+          ❌ {error}
+          {error.includes("401") && (
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: "#7f1d1d" }}>
+              En kidotag10 real: token eliminado de localStorage + redirect a /login
+            </p>
+          )}
+        </div>
+      )}
+
+      {resultado && (
+        <pre
+          style={{
+            background: "#0f172a",
+            color: "#4ade80",
+            borderRadius: 8,
+            padding: 12,
+            fontSize: 12,
+          }}
+        >
+          {JSON.stringify(resultado, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}`}
+/>

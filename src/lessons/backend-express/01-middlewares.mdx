@@ -1,0 +1,245 @@
+# Middlewares en Express
+
+<LibCard
+  nombre="cors"
+  version="2.8.5"
+  npm="cors"
+  categoria="backend"
+  docs="https://github.com/expressjs/cors"
+  descripcion="Middleware que configura las cabeceras CORS para controlar qué orígenes pueden llamar a la API desde un navegador."
+  porque="Sin CORS configurado, el navegador bloquea cualquier petición desde un origen diferente al de la API (por ejemplo, frontend en :5173 → API en :4000). Es imprescindible en cualquier API consumida por un frontend separado."
+  usoEjemplo={`// src/app.js de kidotag10
+const cors = require('cors');
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true,
+}));`}
+  alternativas={[
+    {
+      nombre: "Cabeceras manuales con res.setHeader",
+      porque_no:
+        "Posible pero tedioso. El paquete cors gestiona preflight (OPTIONS) automáticamente.",
+    },
+    {
+      nombre: "Proxy Vite en desarrollo",
+      porque_no: "Solo funciona en dev, no resuelve el problema en producción.",
+    },
+  ]}
+/>
+
+Un **middleware** es simplemente una función con la firma `(req, res, next)`. Express ejecuta los middlewares en cadena — el orden importa muchísimo.
+
+## El patrón middleware
+
+```
+Petición → [middleware 1] → [middleware 2] → [middleware N] → Ruta → Respuesta
+             ↓ next()         ↓ next()         ↓ next()
+```
+
+```javascript
+// Anatomía de un middleware
+function miMiddleware(req, res, next) {
+  // 1. Puede leer/modificar req y res
+  // 2. Puede terminar la petición (res.json, res.send, etc.)
+  // 3. O pasar al siguiente con next()
+  // 4. O señalar un error con next(error)
+  next(); // ← continúa la cadena
+}
+```
+
+## Tipos de middleware
+
+<Mermaid
+  titulo="Cadena de middlewares en kidotag10"
+  diagrama={`graph LR
+  A[Petición] --> B[cors]
+  B --> C[express.json]
+  C --> D[logger]
+  D --> E{¿Ruta protegida?}
+  E -- sí --> F[verificarToken]
+  E -- no --> G[Controlador]
+  F --> G
+  G --> H[Respuesta JSON]`}
+/>
+
+<CodePlayground
+  titulo="Middlewares: orden, flujo y error handling"
+  archivos={{
+    '/app.js': `const express = require("express");
+const app = express();
+
+// ─── 1. Middleware de aplicación (global) ───────
+app.use(express.json());
+
+// Logger personalizado
+app.use((req, res, next) => {
+  const inicio = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - inicio;
+    console.log(\`\${req.method} \${req.url} → \${res.statusCode} [\${ms}ms]\`);
+  });
+  next();
+});
+
+// ─── 2. Middleware de ruta (solo en /api/alumnos) ──
+function verificarToken(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer ")) {
+    return res.status(401).json({ ok: false, error: "Token requerido" });
+  }
+  const token = auth.split(" ")[1];
+  // En kidotag10: jwt.verify(token, process.env.JWT_SECRET)
+  if (token === "token-valido") {
+    req.usuario = { id: "1", rol: "profesor" };
+    next();
+  } else {
+    res.status(403).json({ ok: false, error: "Token inválido" });
+  }
+}
+
+// ─── 3. Rutas ────────────────────────────────────
+app.get("/publico", (req, res) => {
+  res.json({ mensaje: "Esta ruta no necesita token" });
+});
+
+app.get("/api/alumnos", verificarToken, (req, res) => {
+  res.json({
+    ok: true,
+    usuario: req.usuario,
+    data: [{ id: 1, nombre: "Ana García" }],
+  });
+});
+
+// ─── 4. Middleware de error (4 parámetros!) ──────
+app.use((err, req, res, next) => {
+  console.error("Error:", err.message);
+  res.status(500).json({ ok: false, error: err.message });
+});
+
+app.listen(3001, () => console.log("Servidor en puerto 3001"));
+
+// Prueba:
+// GET /publico → funciona sin token
+// GET /api/alumnos → 401 sin token
+// GET /api/alumnos con header "Authorization: Bearer token-valido" → OK`,
+}}
+plantilla="node"
+mostrarConsola
+/>
+
+## CORS — Cross-Origin Resource Sharing
+
+```javascript
+const cors = require("cors");
+
+// En kidotag10: solo permite el origen del frontend
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    credentials: true, // Permite cookies
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  }),
+);
+```
+
+<Callout variante="warning" titulo="El orden de app.use() importa">
+  Los middlewares se ejecutan en el **orden en que se registran**. Siempre
+  registra: 1. `cors()` primero 2. Luego `express.json()` 3. Después tus rutas
+  4. El handler de errores **al final** (siempre)
+</Callout>
+
+<Callout
+  variante="kidotag"
+  titulo="En kidotag10/api — src/app.js y middlewares/"
+>
+  `src/middlewares/auth.middleware.js` contiene `verificarToken` y los helpers
+  de roles. Se aplica ruta a ruta: `router.get('/', verificarToken, esProfesor,
+  controller)`.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué el middleware de manejo de errores en Express recibe 4 parámetros (err, req, res, next)?",
+      opciones: [
+        { texto: "Es opcional — puede tener 3 o 4 parámetros" },
+        {
+          texto:
+            "Express lo identifica como error handler precisamente porque tiene 4 parámetros",
+          correcta: true,
+        },
+        { texto: "Para que pueda llamar a next() con el error" },
+      ],
+      explicacion:
+        "Express detecta un middleware de error por la presencia de 4 parámetros. Si defines (req, res, next), Express no lo trata como handler de errores aunque lo registres al final.",
+    },
+    {
+      pregunta:
+        'En la cadena: app.use(cors()), app.use(auth()), app.get("/ruta", handler). ¿Qué pasa si auth() llama res.status(401).json() sin llamar next()?',
+      opciones: [
+        { texto: "handler se ejecuta de todas formas" },
+        {
+          texto: "La petición termina en auth() y handler nunca se ejecuta",
+          correcta: true,
+        },
+        { texto: "Express arroja un error interno" },
+      ],
+      explicacion:
+        "Cuando un middleware envía una respuesta (res.json, res.send, etc.) sin llamar next(), la cadena se detiene allí. El handler y cualquier middleware posterior no se ejecutan.",
+    },
+    {
+      pregunta:
+        "¿Qué problema resuelve el middleware CORS (cors()) en kidotag10?",
+      opciones: [
+        { texto: "Comprime las respuestas para que sean más rápidas" },
+        {
+          texto:
+            "Añade los headers HTTP necesarios para que el navegador permita peticiones del frontend (puerto 5173) al backend (puerto 4000)",
+          correcta: true,
+        },
+        { texto: "Autentifica las peticiones antes de llegar al handler" },
+        { texto: "Convierte las respuestas de XML a JSON" },
+      ],
+      explicacion:
+        "Sin CORS, el navegador bloquea las peticiones de localhost:5173 a localhost:4000 por ser orígenes distintos. El middleware cors() añade el header Access-Control-Allow-Origin, indicando al navegador que el servidor acepta peticiones de ese origen.",
+    },
+    {
+      pregunta:
+        "¿Por qué el middleware de logging (morgan) se registra ANTES de las rutas en kidotag10?",
+      opciones: [
+        { texto: "Para que las respuestas sean más rápidas" },
+        {
+          texto:
+            "Para que registre TODAS las peticiones entrantes, incluidas las que fallan por autenticación o no existen",
+          correcta: true,
+        },
+        { texto: "Express requiere que morgan sea el primer middleware" },
+        { texto: "Para que pueda modificar el cuerpo de la petición" },
+      ],
+      explicacion:
+        "Si morgan fuera después de las rutas, solo verías peticiones que llegan a handlers exitosos. Antes de todo, registra 404s, 401s y errores por igual — crucial para depurar.",
+    },
+    {
+      pregunta:
+        "¿Qué ventaja tiene extraer la validación en un middleware reutilizable en lugar de validar en cada controller?",
+      opciones: [
+        {
+          texto: "Los middlewares son más rápidos que el código en controllers",
+        },
+        {
+          texto:
+            "La lógica de validación se define una vez y se aplica a múltiples rutas sin duplicar código",
+          correcta: true,
+        },
+        { texto: "Los controllers no pueden acceder a req.body" },
+        {
+          texto:
+            "Por convención de Express, toda validación debe ser middleware",
+        },
+      ],
+      explicacion:
+        "En kidotag10, si la validación del body está en un middleware, app.use('/api/alumnos', validarAlumno, alumnoRouter) aplica la misma validación a todas las rutas. Sin esto, cada controller repite el mismo código de validación.",
+    },
+  ]}
+/>

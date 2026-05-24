@@ -1,0 +1,315 @@
+# fetch API: peticiones HTTP desde React
+
+`fetch` es la API nativa del navegador para hacer peticiones HTTP. En el web de
+kidotag10 se usa para comunicarse con la API REST.
+
+## fetch básico
+
+```javascript
+// GET — obtener datos
+const res = await fetch("http://localhost:4000/api/alumnos");
+const json = await res.json();
+console.log(json); // { ok: true, data: [...] }
+
+// POST — enviar datos
+const res = await fetch("http://localhost:4000/api/auth/login", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, password, rol }),
+});
+const json = await res.json();
+```
+
+<Callout variante="warning" titulo="fetch NO lanza error en 4xx/5xx">
+  A diferencia de axios, `fetch` solo lanza un error de red (sin conexión). Un
+  401 o 404 llega como una respuesta exitosa desde el punto de vista de la
+  Promise. Siempre debes revisar `res.ok` o `res.status`.
+</Callout>
+
+## Manejo correcto de errores
+
+```javascript
+async function loginApi(email, password, rol) {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, rol }),
+  });
+
+  const json = await res.json(); // siempre parsear, incluso en errores
+
+  if (!res.ok) {
+    // El servidor devolvió 4xx o 5xx
+    throw new Error(json.error || "Error del servidor");
+  }
+
+  return json.data; // { token, usuario }
+}
+
+// Uso:
+try {
+  const { token, usuario } = await loginApi(email, password, "profesor");
+  localStorage.setItem("token", token);
+} catch (err) {
+  setError(err.message); // mostrar al usuario
+}
+```
+
+## Anatomía de la respuesta
+
+```javascript
+const res = await fetch(url);
+
+// res es un objeto Response
+res.ok; // true si status 200-299
+res.status; // 200, 401, 404, 500...
+res.statusText; // "OK", "Unauthorized"...
+
+// Métodos para leer el body (solo se pueden llamar UNA vez):
+await res.json(); // → objeto JavaScript
+await res.text(); // → string
+await res.blob(); // → Blob (para archivos/imágenes)
+```
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "Si el servidor devuelve 401 Unauthorized, ¿qué sucede con la Promise de fetch?",
+      opciones: [
+        {
+          texto:
+            "La Promise se rechaza (throw) automáticamente con un error de autenticación",
+        },
+        {
+          texto:
+            "La Promise se resuelve con el objeto Response — res.ok será false y res.status será 401",
+          correcta: true,
+        },
+        { texto: "fetch redirige automáticamente al login" },
+        { texto: "fetch intenta la petición de nuevo" },
+      ],
+      explicacion:
+        "fetch solo rechaza la Promise por errores de red (sin conexión, CORS, DNS). Los códigos de estado HTTP — incluyendo errores 4xx y 5xx — llegan como respuestas normales. Por eso siempre hay que revisar res.ok.",
+    },
+    {
+      pregunta:
+        "¿Por qué se necesita if (!res.ok) throw new Error(res.status) después de cada fetch?",
+      opciones: [
+        { texto: "Es solo buenas prácticas opcionales" },
+        {
+          texto:
+            "Porque fetch no lanza error en respuestas 4xx/5xx. Sin esta verificación, el código continuaría ejecutando res.json() sobre una respuesta de error",
+          correcta: true,
+        },
+        { texto: "Para compatibilidad con navegadores antiguos" },
+        { texto: "Porque res.ok solo existe en versiones recientes de fetch" },
+      ],
+      explicacion:
+        "Sin if (!res.ok): si el servidor retorna 401 con un JSON de error, res.json() se ejecutaría y el código continuaría tratando el error como datos válidos. En kidotag, esto causaría que la app muestre datos corruptos o crashee.",
+    },
+    {
+      pregunta: "¿Cómo se envía un body JSON en una petición POST con fetch?",
+      opciones: [
+        {
+          texto:
+            "fetch(url, { body: { nombre: 'Ana' } }) — el objeto directamente",
+        },
+        {
+          texto:
+            "headers: { 'Content-Type': 'application/json' } y body: JSON.stringify({ nombre: 'Ana' }) — el body debe ser un string",
+          correcta: true,
+        },
+        { texto: "fetch(url, { json: { nombre: 'Ana' } })" },
+        { texto: "El Content-Type no es necesario si usas JSON.stringify" },
+      ],
+      explicacion:
+        "fetch no convierte objetos a JSON automáticamente. Se necesita JSON.stringify para serializar y el header Content-Type: application/json para que Express (con express.json()) parsee el body correctamente.",
+    },
+    {
+      pregunta:
+        "¿Cuál es el patrón correcto para manejar errores de red y errores del servidor en fetch?",
+      opciones: [
+        { texto: "Solo try/catch captura todos los errores" },
+        {
+          texto:
+            "try/catch para errores de red + if (!res.ok) para errores HTTP: son dos caminos de error diferentes",
+          correcta: true,
+        },
+        { texto: "Solo if (!res.ok) es necesario" },
+        { texto: "fetch.catch() maneja ambos automáticamente" },
+      ],
+      explicacion:
+        "Error de red: sin conexión, DNS falla, CORS — la Promise se rechaza, el catch lo captura. Error HTTP: el servidor responde con 404, 500, etc. — la Promise se resuelve, necesitas if (!res.ok). En kidotag, ambos se muestran al usuario con mensajes diferentes.",
+    },
+  ]}
+/>
+
+## Practica: simulador de peticiones HTTP
+
+<CodePlayground
+  titulo="fetch — simulador de llamadas a la API"
+  codigo={`import { useState } from "react";
+
+// Datos simulados (en kidotag10 vendrían de la API real)
+const DB = {
+  alumnos: [
+    { _id: "a1", nombre: "Ana García", grado: "3°A" },
+    { _id: "a2", nombre: "Luis López", grado: "6°B" },
+    { _id: "a3", nombre: "Mia Torres", grado: "1°C" },
+  ],
+  login: { token: "eyJhbGciOiJIUzI1NiJ9...TRUNCADO", rol: "admin" },
+};
+
+// Simula fetch con delay y errores controlables
+async function mockFetch(url, options = {}) {
+  await new Promise((r) => setTimeout(r, 600)); // delay realista
+
+  if (url.includes("/auth/login")) {
+    const body = JSON.parse(options.body || "{}");
+    if (body.email === "admin@kidotag.mx" && body.password === "1234") {
+      return { ok: true, status: 200, json: async () => DB.login };
+    }
+    return { ok: false, status: 401, json: async () => ({ mensaje: "Credenciales inválidas" }) };
+  }
+  if (url.includes("/alumnos")) {
+    const auth = (options.headers || {}).Authorization;
+    if (!auth || !auth.startsWith("Bearer ")) {
+      return { ok: false, status: 401, json: async () => ({ mensaje: "Token requerido" }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, data: DB.alumnos }) };
+  }
+  return { ok: false, status: 404, json: async () => ({ mensaje: "Ruta no encontrada" }) };
+}
+
+export default function App() {
+  const [token, setToken] = useState("");
+  const [log, setLog] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  function addLog(tipo, msg) {
+    setLog((prev) => [...prev, { tipo, msg, ts: new Date().toLocaleTimeString() }]);
+  }
+
+  async function doLogin() {
+    setLoading(true);
+    addLog("info", "POST /api/auth/login ...");
+    const res = await mockFetch("http://localhost:4000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "admin@kidotag.mx", password: "1234" }),
+    });
+    const json = await res.json();
+    if (res.ok) {
+      setToken(json.token);
+      addLog("ok", \`✅ Login OK. Token guardado (rol: \${json.rol})\`);
+    } else {
+      addLog("error", \`❌ \${res.status}: \${json.mensaje}\`);
+    }
+    setLoading(false);
+  }
+
+  async function doGetAlumnos() {
+    setLoading(true);
+    addLog("info", "GET /api/alumnos ...");
+    const res = await mockFetch("http://localhost:4000/api/alumnos", {
+      headers: { Authorization: token ? \`Bearer \${token}\` : "" },
+    });
+    const json = await res.json();
+    if (res.ok) {
+      addLog("ok", \`✅ \${json.data.length} alumnos recibidos\`);
+      addLog("data", JSON.stringify(json.data, null, 2));
+    } else {
+      addLog("error", \`❌ \${res.status}: \${json.mensaje}\`);
+    }
+    setLoading(false);
+  }
+
+  function doLogout() {
+    setToken("");
+    addLog("info", "Token eliminado (logout).");
+  }
+
+  const btnStyle = (color) => ({
+    padding: "7px 14px",
+    background: color,
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+    fontWeight: 600,
+  });
+
+  return (
+    <div style={{ fontFamily: "monospace", padding: 16 }}>
+      <h2 style={{ fontFamily: "sans-serif", marginBottom: 12 }}>Simulador fetch API</h2>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <button onClick={doLogin} style={btnStyle("#274c77")} disabled={loading}>
+          1. Login (POST /auth/login)
+        </button>
+        <button onClick={doGetAlumnos} style={btnStyle("#15803d")} disabled={loading}>
+          2. GET /alumnos {token ? "🔑" : "🚫"}
+        </button>
+        <button onClick={doLogout} style={btnStyle("#b91c1c")} disabled={loading}>
+          Logout
+        </button>
+        <button onClick={() => setLog([])} style={btnStyle("#64748b")} disabled={loading}>
+          Limpiar
+        </button>
+      </div>
+
+      {token && (
+        <div
+          style={{
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            borderRadius: 6,
+            padding: "8px 12px",
+            marginBottom: 12,
+            fontSize: 12,
+            wordBreak: "break-all",
+          }}
+        >
+          🔑 Token: {token.slice(0, 40)}...
+        </div>
+      )}
+
+      <div
+        style={{
+          background: "#0f172a",
+          color: "#e2e8f0",
+          borderRadius: 8,
+          padding: 12,
+          minHeight: 120,
+          fontSize: 12,
+          lineHeight: 1.6,
+        }}
+      >
+        {log.length === 0 && (
+          <span style={{ color: "#475569" }}>Presiona "Login" para comenzar...</span>
+        )}
+        {log.map((l, i) => (
+          <div
+            key={i}
+            style={{
+              color:
+                l.tipo === "ok"
+                  ? "#4ade80"
+                  : l.tipo === "error"
+                    ? "#f87171"
+                    : l.tipo === "data"
+                      ? "#93c5fd"
+                      : "#94a3b8",
+            }}
+          >
+            <span style={{ color: "#475569" }}>[{l.ts}] </span>
+            {l.msg}
+          </div>
+        ))}
+        {loading && <div style={{ color: "#fbbf24" }}>⏳ esperando respuesta...</div>}
+      </div>
+    </div>
+  );
+}`}
+/>

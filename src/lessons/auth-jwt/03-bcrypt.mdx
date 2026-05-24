@@ -1,0 +1,259 @@
+# bcrypt: salt, rounds y compare
+
+<LibCard
+  nombre="bcryptjs"
+  version="2.4.3"
+  npm="bcryptjs"
+  categoria="auth"
+  docs="https://github.com/dcodeIO/bcrypt.js"
+  descripcion="Implementación JavaScript pura del algoritmo bcrypt. Hashea passwords con salt automático y un factor de costo configurable."
+  porque="bcryptjs es la elección estándar porque: genera y gestiona el salt automáticamente, tiene el factor de costo configurable (cuánto tiempo tarda en hashear), y es implementación JS pura que no requiere compilación nativa."
+  usoEjemplo={`// src/models/tutor.model.js de kidotag10
+tutorSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+// Verificar al hacer login
+const match = await bcrypt.compare(passwordIngresado, tutor.password);`}
+alternativas={[
+{ nombre: "bcrypt (nativo)", porque_no: "Requiere compilar código C++. bcryptjs es JS puro y funciona en cualquier plataforma sin compilación." },
+{ nombre: "argon2", porque_no: "Más moderno y recomendado para nuevos proyectos, pero requiere código nativo. Para una API educativa, bcryptjs es suficiente." },
+{ nombre: "crypto (Node.js)", porque_no: "SHA-256 es demasiado rápido para passwords. Requirirías PBKDF2 con muchas iteraciones manualmente." },
+]}
+/>
+
+## El factor de costo (rounds)
+
+bcrypt acepta un número de **rounds** (también llamado "cost factor"). Este número
+determina cuántas veces se aplica el algoritmo internamente:
+
+```javascript
+// cost = 10 → 2^10 = 1,024 iteraciones → ~100ms
+// cost = 12 → 2^12 = 4,096 iteraciones → ~400ms
+// cost = 14 → 2^14 = 16,384 iteraciones → ~1.6s
+
+const hash = await bcrypt.hash("MiPassword123", 10);
+```
+
+| Rounds | Tiempo aprox. | Cuándo usarlo                          |
+| ------ | ------------- | -------------------------------------- |
+| 8      | ~5ms          | Tests automáticos (velocidad)          |
+| 10     | ~100ms        | **Producción recomendado** ← kidotag10 |
+| 12     | ~400ms        | Alta seguridad, usuarios no notan      |
+| 14     | ~1.6s         | Muy alta seguridad (bancos)            |
+
+kidotag10 usa **10 rounds** — el balance perfecto entre seguridad y experiencia de usuario.
+
+## bcrypt.hash() y bcrypt.compare()
+
+```javascript
+const bcrypt = require("bcryptjs");
+
+// ── HASH (al registrar o cambiar password) ──────────────
+const hashGuardado = await bcrypt.hash("Futbol123", 10);
+// Resultado: "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVBhAJf"
+// ^─ algoritmo, rounds, salt (22 chars) + hash (31 chars)
+
+// ── COMPARE (al hacer login) ─────────────────────────────
+const esValido = await bcrypt.compare("Futbol123", hashGuardado); // true
+const esValido2 = await bcrypt.compare("OtroPass", hashGuardado); // false
+```
+
+<Callout variante="info" titulo="El hash incluye todo">
+  El string resultante de bcrypt incluye el algoritmo, los rounds y el salt
+  integrado. No necesitas guardar el salt por separado — está embebido en el
+  hash. Por eso basta guardar un solo campo <code>password</code> en el
+  documento.
+</Callout>
+
+## El hook pre('save') de kidotag10
+
+```javascript
+// src/models/tutor.model.js
+const bcrypt = require("bcryptjs");
+
+tutorSchema.pre("save", async function (next) {
+  // Solo hashear si el campo password fue modificado
+  // (evita re-hashear en actualizaciones de nombre, email, etc.)
+  if (!this.isModified("password")) return next();
+
+  try {
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+  } catch (error) {
+    next(error); // propaga el error a Mongoose
+  }
+});
+```
+
+Este hook se ejecuta **automáticamente** antes de cada `tutor.save()`. El
+controlador de registro no necesita saber nada de hashing:
+
+```javascript
+// src/controllers/auth.controller.js — simple y limpio
+const tutor = new Tutor({ nombre, email, password }); // password en plano
+await tutor.save(); // ← el hook hashea automáticamente
+```
+
+<CodePlayground
+  titulo="Simulador bcrypt"
+  descripcion="Experimenta con bcrypt.hash() y bcrypt.compare()"
+  files={{
+    "/index.js": `// Simulación del comportamiento de bcrypt
+// (bcrypt real no funciona en el navegador, esto es una demostración)
+
+// Simulamos el hash con una representación simplificada
+function simulateHash(password, rounds) {
+// En bcrypt real esto tarda ~100ms con rounds=10
+const fakeSalt = Math.random().toString(36).substring(2, 24);
+return \`$2b$\${rounds}$\${fakeSalt}\${btoa(password + fakeSalt).substring(0, 31)}\`;
+}
+
+function simulateCompare(password, hash) {
+// En bcrypt real: re-hashea con el mismo salt y compara
+const parts = hash.split("$");
+const rounds = parseInt(parts[2]);
+const saltAndHash = parts[3];
+const salt = saltAndHash.substring(0, 22);
+const expectedHash = btoa(password + salt).substring(0, 31);
+return saltAndHash.substring(22) === expectedHash;
+}
+
+// Registrar usuario
+const passwordOriginal = "Futbol123";
+console.log("Password original:", passwordOriginal);
+
+const hash = simulateHash(passwordOriginal, 10);
+console.log("Hash guardado en DB:", hash);
+console.log("Longitud del hash:", hash.length, "chars");
+
+// Login correcto
+const loginCorrecto = simulateCompare("Futbol123", hash);
+console.log("\nLogin con password correcto:", loginCorrecto ? "✅ OK" : "❌ FAIL");
+
+// Login incorrecto
+const loginIncorrecto = simulateCompare("OtroPassword", hash);
+console.log("Login con password incorrecto:", loginIncorrecto ? "❌ VULNERABLE" : "✅ Bloqueado");
+
+// Mismo password, diferente hash (por el salt aleatorio)
+const hash2 = simulateHash(passwordOriginal, 10);
+console.log(
+"\nDos hashes del MISMO password son iguales?",
+hash === hash2 ? "❌ Error" : "✅ Diferentes (salt aleatorio)",
+);`,
+}}
+entryFile="/index.js"
+verificaciones={[
+{
+id: "funcion-hash",
+titulo: "Define función de hashing (simulateHash)",
+descripcion: "El hashing convierte un password en texto irreversible usando un salt aleatorio.",
+tipo: "contiene",
+patron: "function simulateHash",
+pista: "Define: function simulateHash(password, rounds) { ... }",
+},
+{
+id: "funcion-compare",
+titulo: "Define función de comparación (simulateCompare)",
+descripcion: "La comparación re-aplica el mismo salt del hash para validar el password.",
+tipo: "contiene",
+patron: "function simulateCompare",
+pista: "Define: function simulateCompare(password, hash) { ... }",
+},
+{
+id: "mismo-password-distinto-hash",
+titulo: "Demuestra que el mismo password produce hashes distintos",
+descripcion: "El salt aleatorio hace que dos hashes del mismo password nunca sean iguales.",
+tipo: "contiene",
+patron: "hash2",
+pista: "Crea: const hash2 = simulateHash(passwordOriginal, 10); y muestra que hash !== hash2",
+},
+{
+id: "prueba-password-incorrecto",
+titulo: "Prueba que un password incorrecto es bloqueado",
+descripcion: "simulateCompare debe retornar false para un password que no coincide.",
+tipo: "contiene",
+patron: "loginIncorrecto",
+pista: "Crea: const loginIncorrecto = simulateCompare('OtroPassword', hash);",
+},
+]}
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "En el hook pre('save') de kidotag10, ¿por qué se verifica 'this.isModified(password)' antes de hashear?",
+      opciones: [
+        { texto: "Para verificar que el password no esté vacío" },
+        {
+          texto:
+            "Para evitar re-hashear un hash ya guardado cuando se actualizan otros campos del documento",
+          correcta: true,
+        },
+        {
+          texto:
+            "Para comprobar si el password cumple la política de seguridad",
+        },
+        { texto: "Porque bcrypt.hash() falla con hashes bcrypt como entrada" },
+      ],
+      explicacion:
+        "Sin esta verificación, al actualizar el nombre del tutor se volvería a hashear el password ya hasheado, corrompiendo la autenticación.",
+    },
+    {
+      pregunta:
+        "¿Qué hace bcrypt.compare() y por qué no puedes hacer tutor.password === passwordIngresado?",
+      opciones: [
+        { texto: "No hay diferencia — compare() es solo un wrapper de ===" },
+        {
+          texto:
+            "compare() aplica el mismo salt del hash almacenado al password ingresado y compara los hashes. La comparación directa siempre fallaría porque cada hash incluye un salt aleatorio",
+          correcta: true,
+        },
+        {
+          texto:
+            "compare() desencripta el hash guardado para comparar los passwords",
+        },
+        { texto: "compare() es más rápido que === para strings largos" },
+      ],
+      explicacion:
+        "El hash bcrypt incluye el salt: $2b$12$SALT_AQUI+HASH. compare() extrae el salt del hash guardado, lo aplica al password ingresado y compara. Así puede verificar sin guardar el salt por separado.",
+    },
+    {
+      pregunta:
+        "¿Cómo afecta aumentar los 'rounds' (cost factor) de bcrypt a la seguridad y rendimiento?",
+      opciones: [
+        { texto: "Más rounds = hashes más cortos y seguros" },
+        {
+          texto:
+            "Más rounds = exponencialmente más tiempo de cómputo. Cada round duplica el tiempo: 10 rounds ~ 65ms, 12 rounds ~ 260ms",
+          correcta: true,
+        },
+        {
+          texto:
+            "Los rounds no afectan la seguridad, solo la longitud del hash",
+        },
+        { texto: "Más rounds = mejor compresin del hash" },
+      ],
+      explicacion:
+        "kidotag10 usa 12 rounds como balance razonable: suficientemente lento para que la fuerza bruta sea costosa, suficientemente rápido para que el login del tutor sea fluido. En un servidor real, hacer 1000 logins/seg con 12 rounds requeriría hardware dedicado.",
+    },
+    {
+      pregunta: "¿Por qué bcrypt incluye el salt en el propio string del hash?",
+      opciones: [
+        { texto: "Para que el hash sea más largo" },
+        {
+          texto:
+            "Para que bcrypt.compare() pueda extraer el salt y reproducir el hash sin necesidad de almacenar el salt por separado",
+          correcta: true,
+        },
+        { texto: "Para identificar qué algoritmo de hash se usó" },
+        { texto: "Es un error de diseño — el salt debería guardarse separado" },
+      ],
+      explicacion:
+        "El formato $2b$12$[22 chars salt][31 chars hash] incluye la versión, rounds y salt en el mismo string. En MongoDB, el campo passwordHash contiene todo lo necesario para verificar el password.",
+    },
+  ]}
+/>

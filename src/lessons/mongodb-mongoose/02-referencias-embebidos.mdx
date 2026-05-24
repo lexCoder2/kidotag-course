@@ -1,0 +1,182 @@
+# Referencias vs documentos embebidos
+
+Al modelar datos en MongoDB, la decisión más importante es cómo representar
+las relaciones: ¿referencias (como las foreign keys de SQL) o embebidos?
+
+## Documentos embebidos (subdocumentos)
+
+Los datos relacionados se guardan **dentro** del documento principal:
+
+```json
+// Alumno con contacto de emergencia EMBEBIDO
+{
+  "_id": "64ab12...",
+  "nombre": "Ana García",
+  "uid_nfc": "A1B2C3",
+  "contactoEmergencia": {
+    "nombre": "María García",
+    "telefono": "555-1234",
+    "parentesco": "madre"
+  }
+}
+```
+
+**Cuándo usar embed:** datos que siempre se usan juntos, relación uno-a-uno,
+los subdatos no tienen identidad propia (un contacto de emergencia no existe
+sin el alumno).
+
+## Referencias (como foreign keys)
+
+Los documentos se guardan separados y se **referencian por ObjectId**:
+
+```json
+// Alumno con referencia a Tutor
+{
+  "_id": "64ab12...",
+  "nombre": "Ana García",
+  "tutor": "507f19..."  // ← ObjectId del tutor
+}
+
+// Documento Tutor separado
+{
+  "_id": "507f19...",
+  "nombre": "Carlos García",
+  "email": "carlos@email.com",
+  "alumnos": ["64ab12...", "64ab13..."]
+}
+```
+
+**Cuándo usar ref:** entidades independientes, relación uno-a-muchos o
+muchos-a-muchos, los datos se consultan por separado frecuentemente.
+
+## kidotag10 usa ambos
+
+```javascript
+// src/models/alumno.model.js — mix de ambos enfoques
+const alumnoSchema = new Schema({
+  nombre: String,
+  uid_nfc: String,
+
+  // Referencia → Tutor es una entidad independiente con login propio
+  tutor: { type: Schema.Types.ObjectId, ref: "Tutor" },
+  grupo: { type: Schema.Types.ObjectId, ref: "Grupo" },
+
+  // Embebido → el contacto de emergencia no existe sin el alumno
+  contactoEmergencia: {
+    nombre: String,
+    telefono: String,
+    parentesco: String,
+  },
+});
+```
+
+## Comparativa
+
+| Criterio                 | Embebido       | Referencia                  |
+| ------------------------ | -------------- | --------------------------- |
+| Lectura (siempre juntos) | ✅ Una query   | ❌ Dos queries (o populate) |
+| Actualizar subdato       | ✅ Simple      | ✅ Simple                   |
+| Entidad independiente    | ❌ No aplica   | ✅ Tiene su propio \_id     |
+| Relación N:M             | ❌ Duplicación | ✅ Adecuado                 |
+| Tamaño de documento      | ⚠️ Crece       | ✅ Controlado               |
+
+<Mermaid titulo="Modelo de datos de kidotag10">
+  {`erDiagram
+  ESCUELA ||--o{ GRUPO : tiene
+  GRUPO ||--o{ ALUMNO : contiene
+  TUTOR ||--o{ ALUMNO : es-tutor-de
+  ALUMNO {
+    ObjectId _id
+    string nombre
+    string uid_nfc
+    ObjectId tutor
+    ObjectId grupo
+    object contactoEmergencia
+  }
+  TUTOR {
+    ObjectId _id
+    string nombre
+    string email
+    string password_hash
+  }
+  GRUPO {
+    ObjectId _id
+    string nombre
+    string grado
+    ObjectId escuela
+  }`}
+</Mermaid>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "En kidotag10, el contactoEmergencia del alumno se guarda como documento embebido. ¿Cuál sería una razón para cambiar esto a una referencia?",
+      opciones: [
+        {
+          texto:
+            "Si el contacto de emergencia pudiera ser tutor de múltiples alumnos y tuviera su propio login",
+          correcta: true,
+        },
+        { texto: "Para que la consulta de alumnos sea más rápida" },
+        { texto: "Porque MongoDB no permite strings en subdocumentos" },
+        { texto: "Para reducir el tamaño del documento" },
+      ],
+      explicacion:
+        "Si el contacto de emergencia tuviera identidad propia (login, gestión separada, o relacionado con múltiples documentos), pasaría a ser una colección separada con referencia.",
+    },
+    {
+      pregunta:
+        "¿Cuál es una razón para preferir documentos embebidos en MongoDB?",
+      opciones: [
+        {
+          texto:
+            "Cuando los datos embebidos se actualizan frecuentemente por otras partes del sistema",
+        },
+        {
+          texto:
+            "Cuando los datos siempre se leen juntos con el documento padre y no se comparten entre múltiples documentos",
+          correcta: true,
+        },
+        {
+          texto:
+            "Cuando el número de subdocumentos puede crecer ilimitadamente",
+        },
+        { texto: "Para facilitar los JOINs en reports" },
+      ],
+      explicacion:
+        "En kidotag10, el schema de dirección de la escuela (calle, colonia, ciudad) se embebe en el documento Escuela porque: siempre se lee junto con la escuela, no se comparte con otros documentos y es un conjunto pequeño y estable de campos.",
+    },
+    {
+      pregunta:
+        "¿Qué patrón se usa en kidotag10 para el historial de asistencias de un alumno?",
+      opciones: [
+        { texto: "Array de asistencias embebido en el documento Alumno" },
+        {
+          texto:
+            "Colección Asistencia separada con referencia al _id del alumno",
+          correcta: true,
+        },
+        { texto: "Tabla de relación como en SQL" },
+        { texto: "Cache en Redis con expire" },
+      ],
+      explicacion:
+        "El historial de asistencias crece indefinidamente. Embeber podria superar el límite de 16 MB. La colección separada permite queries eficientes (por fecha, por grupo, por alumno) con índices apropiados.",
+    },
+    {
+      pregunta: "¿Qué es la 'desnormalización' y cuándo la usa kidotag10?",
+      opciones: [
+        { texto: "Eliminar datos duplicados de la base de datos" },
+        {
+          texto:
+            "Copiar datos de otra colección dentro del documento para evitar queries adicionales, a costa de posible inconsistencia",
+          correcta: true,
+        },
+        { texto: "Convertir referencias a subdocumentos automáticamente" },
+        { texto: "Un error de diseño que siempre debe evitarse" },
+      ],
+      explicacion:
+        "En kidotag10, guardar el nombre del alumno en el registro de asistencia (además del alumnoId) es desnormalización. Permite mostrar reportes históricos con el nombre sin populate, incluso si el alumno cambia de nombre.",
+    },
+  ]}
+/>

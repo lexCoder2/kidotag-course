@@ -1,0 +1,164 @@
+# TypeScript en React: props y estado tipado
+
+En React, TypeScript ayuda mucho con props y estado.
+
+## Props tipadas
+
+```ts
+type CardProps = {
+  nombre: string;
+  presente: boolean;
+};
+
+function Card({ nombre, presente }: CardProps) {
+  return <div>{nombre} - {presente ? "OK" : "Falta"}</div>;
+}
+```
+
+## useState tipado
+
+```ts
+const [total, setTotal] = useState<number>(0);
+```
+
+<CodePlayground
+  titulo="kidotag-utils — L8: TypeScript en React"
+  plantilla="react-ts"
+  entryFile="/App.tsx"
+  mostrarConsola={false}
+  objetivo="Usar las interfaces de KidoTag en un componente React con props tipadas y estado generico."
+  archivos={{
+    '/types.ts': { code: `export interface Alumno {
+  id: string;
+  nombre: string;
+  grado: string;
+  asistencia: number;
+  faltas: number;
+}
+export type EstadoAsistencia = "Excelente" | "Regular" | "En riesgo";`, readOnly: true },
+    '/data.ts': { code: `import type { Alumno } from "./types";
+export const alumnos: Alumno[] = [
+  { id: "a001", nombre: "Ana Garcia", grado: "3A", asistencia: 95, faltas: 1 },
+  { id: "a002", nombre: "Luis Mendez", grado: "3A", asistencia: 78, faltas: 5 },
+  { id: "a003", nombre: "Mia Torres", grado: "4B", asistencia: 100, faltas: 0 },
+  { id: "a004", nombre: "Carlos Ruiz", grado: "4B", asistencia: 62, faltas: 9 },
+];`, readOnly: true },
+    '/App.tsx': `import { useState } from "react";
+import type { Alumno, EstadoAsistencia } from "./types";
+import { alumnos as alumnosIniciales } from "./data";
+
+// Funcion pura — recibe number, devuelve el tipo union
+function getEstado(p: number): EstadoAsistencia {
+  if (p >= 90) return "Excelente";
+  if (p >= 75) return "Regular";
+  return "En riesgo";
+}
+
+// Props tipadas — TypeScript valida que se pasen correctamente
+type TarjetaProps = { alumno: Alumno };
+
+function TarjetaAlumno({ alumno }: TarjetaProps) {
+  const estado = getEstado(alumno.asistencia);
+  const bg = estado === "Excelente" ? "#dcfce7" : estado === "Regular" ? "#fef9c3" : "#fee2e2";
+  return (
+    <div style={{ background: bg, padding: "10px 14px", borderRadius: 8, marginBottom: 8 }}>
+      <strong>{alumno.nombre}</strong>
+      <span style={{ marginLeft: 8, color: "#64748b", fontSize: 13 }}>{alumno.grado}</span>
+      <span style={{ float: "right", fontSize: 13 }}>
+        {alumno.asistencia}% — {estado}
+      </span>
+    </div>
+  );
+}
+
+// useState<T> — T define que tipo puede guardarse en el estado
+export default function App() {
+  const [lista] = useState<Alumno[]>(alumnosIniciales);
+  const enRiesgo = lista.filter((a) => a.asistencia < 75).length;
+  return (
+    <div style={{ fontFamily: "sans-serif", padding: "1.5rem", maxWidth: 440 }}>
+      <h2 style={{ marginBottom: "1rem" }}>KidoTag — Reporte de asistencia</h2>
+      {lista.map((a) => (
+        <TarjetaAlumno key={a.id} alumno={a} />
+      ))}
+      <p style={{ color: "#64748b", fontSize: 12, marginTop: "1rem" }}>
+        Total: {lista.length} alumnos | En riesgo: {enRiesgo}
+      </p>
+    </div>
+  );
+}`,
+}}
+pasosIncrementales={[
+"Ejecuta y verifica que las tarjetas muestran color segun el estado de asistencia.",
+"Modifica TarjetaAlumno para mostrar tambien el numero de faltas debajo del nombre.",
+"Agrega useState<string> para filtrar por grado y aplica el filtro antes de renderizar.",
+"Prueba agregar un alumno en data.ts con asistencia: 'alta' — lee el error de TypeScript.",
+]}
+retoFinal="Extrae el calculo de estadisticas (total, enRiesgo, promedio) a una funcion tipada separada. Recibe Alumno[] y devuelve un objeto con tipos explicilos. Muestra el resultado debajo de la lista."
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Cuál es la ventaja principal de tipar las props con una interfaz en TypeScript?",
+      opciones: [
+        { texto: "Hace la app más rápida en el navegador" },
+        {
+          texto:
+            "El editor detecta en tiempo de desarrollo si pasas un prop incorrecto o falta uno requerido, antes de ejecutar la app",
+          correcta: true,
+        },
+        { texto: "Reemplaza los PropTypes de React" },
+      ],
+      explicacion:
+        "Con `interface AlumnoCardProps { nombre: string; presente: boolean }`, si intentas renderizar `<AlumnoCard nombre={123} />`, TypeScript muestra error en el editor — número en lugar de string. Mucho mejor que descubrir el bug en ejecución.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre type e interface en TypeScript para definir props?",
+      opciones: [
+        { texto: "type solo acepta tipos primitivos" },
+        {
+          texto:
+            "Ambas son casi equivalentes para props. interface es preferida para objetos y puede extenderse con extends; type puede expresar uniones (A | B) y tuplas",
+          correcta: true,
+        },
+        { texto: "interface es solo para clases, no para funciones" },
+        { texto: "type es más rápido en tiempo de compilación" },
+      ],
+      explicacion:
+        "En kidotag10 se usan interfaces para las props de componentes (interface AlumnoCardProps). Para tipos de utilidad como uniones de strings se usa type: type Rol = 'admin' | 'profesor' | 'tutor'.",
+    },
+    {
+      pregunta: "¿Qué significa el tipo `string | null` en TypeScript?",
+      opciones: [
+        { texto: "Un string que contiene la palabra 'null'" },
+        {
+          texto:
+            "El valor puede ser un string o puede ser null — hay que verificar antes de usarlo como string",
+          correcta: true,
+        },
+        { texto: "Un tipo de error en TypeScript" },
+        { texto: "Un string opcional que puede omitirse" },
+      ],
+      explicacion:
+        "En kidotag10, el uid NFC de un alumno puede ser `string | null` si aún no tiene tarjeta asignada. TypeScript obliga a manejar el caso null: `if (alumno.nfcUid !== null) { ... }` antes de usarlo como string.",
+    },
+    {
+      pregunta: "¿Qué hace el operador `as` (type assertion) en TypeScript?",
+      opciones: [
+        { texto: "Convierte el tipo en tiempo de ejecución como un cast" },
+        {
+          texto:
+            "Le dice al compilador que trate un valor como un tipo específico — solo afecta la verificación estática, no el valor real en ejecución",
+          correcta: true,
+        },
+        { texto: "Lanza un error si el tipo no coincide" },
+        { texto: "Es equivalente al operador === de JavaScript" },
+      ],
+      explicacion:
+        "TypeScript confía en ti cuando usas `as`. `(data as Alumno[])` no convierte el valor en runtime — solo le dice al compilador 'confía en mí, esto es un Alumno[]'. Úsalo cuando tienes certeza del tipo (ej: al parsear JSON del servidor).",
+    },
+  ]}
+/>

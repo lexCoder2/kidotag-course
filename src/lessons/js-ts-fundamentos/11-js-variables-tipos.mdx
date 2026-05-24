@@ -1,0 +1,152 @@
+# Variables y tipos en JS
+
+Si estas empezando, piensa esto: una **variable** es una cajita para guardar un dato.
+
+- `const` = cajita que no quieres cambiar.
+- `let` = cajita que puede cambiar.
+
+## Ejemplo sencillo
+
+```javascript
+const escuela = "Primaria Juarez";
+let alumnos = 230;
+let hayClases = true;
+
+alumnos = alumnos + 1;
+```
+
+<Callout variante="tip" titulo="Regla facil para iniciar">
+  Usa `const` por defecto. Solo usa `let` cuando de verdad necesites cambiar el
+  valor.
+</Callout>
+
+## Tipos mas comunes
+
+- `string`: texto
+- `number`: numeros
+- `boolean`: verdadero/falso
+- `null`: vacio intencional
+- `undefined`: aun no tiene valor
+
+<CodePlayground
+  titulo="kidotag-utils — L1: Variables y tipos"
+  plantilla="vanilla"
+  soloConsola={true}
+  entryFile="/config.js"
+  mostrarConsola={true}
+  objetivo="Definir constantes del sistema KidoTag y explorar tipos primitivos con console.log."
+  archivos={{
+    '/index.html': { code: `<!DOCTYPE html><html lang="es"><body><p style="font-family:sans-serif;color:#94a3b8;padding:1rem">Ver consola ↓</p><script type="module" src="./index.js"></script></body></html>`, hidden: true },
+    '/config.js': `// config.js — Constantes del sistema KidoTag
+export const ESCUELA = "Primaria Benito Juarez";
+export const CICLO = "2025-2026";
+export const MAX_POR_GRUPO = 35;
+
+// Plantilla base de un alumno
+export const alumnoBase = {
+  id: "a001",
+  nombre: "Ana Garcia",
+  grado: "3A",
+  presente: true,
+  tutor: null,
+};`,
+    '/index.js': `import { ESCUELA, CICLO, MAX_POR_GRUPO, alumnoBase } from "./config.js";
+
+console.log("=== KidoTag Utils v1 ===");
+console.log("Escuela:", ESCUELA);
+console.log("Ciclo:", CICLO);
+console.log("Max por grupo:", MAX_POR_GRUPO);
+console.log("Alumno base:", alumnoBase);
+
+console.log("--- Tipos de cada campo ---");
+Object.entries(alumnoBase).forEach(function (entry) {
+  console.log(entry[0] + ": " + JSON.stringify(entry[1]) + " (" + typeof entry[1] + ")");
+});`,
+}}
+pasosIncrementales={[
+"Ejecuta el sandbox y lee la salida de la consola.",
+"Cambia ESCUELA a tu propia escuela y verifica que se refleja en la consola.",
+"Agrega el campo 'telefono: \"555-1234\"' a alumnoBase y observa su tipo en la consola.",
+"Crea una constante alumno2 con datos distintos y loguéala al final de index.js.",
+]}
+retoFinal="Agrega una constante TURNO con valor 'manana'. Usa un if para imprimir 'Turno valido' si es 'manana' o 'tarde', o 'Turno invalido' en otro caso."
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Qué conviene usar por defecto al declarar una variable en JavaScript moderno?",
+      opciones: [
+        { texto: "var — compatible con todas las versiones" },
+        {
+          texto: "const — y cambiar a let solo si necesitas reasignar el valor",
+          correcta: true,
+        },
+        { texto: "let siempre, para tener flexibilidad" },
+      ],
+      explicacion:
+        "const comunica intención: este valor no cambiará. Usar const por defecto ayuda a detectar reasignaciones accidentales. var tiene scope de función y hoisting que generan bugs difíciles de encontrar.",
+    },
+    {
+      pregunta: "¿Cuál es la diferencia de scope entre var y let/const?",
+      opciones: [
+        { texto: "No hay diferencia práctica" },
+        {
+          texto:
+            "var tiene scope de función (o global); let/const tienen scope de bloque {}. Esto significa que let/const no son visibles fuera del bloque donde se declararon",
+          correcta: true,
+        },
+        { texto: "let/const solo se pueden usar en funciones" },
+        { texto: "var no puede usarse dentro de funciones" },
+      ],
+      explicacion:
+        "Con var, una variable declarada dentro de un if {} es accesible fuera de él. Con let/const, la variable solo existe dentro del bloque {}. En kidotag10, siempre se usan const/let para evitar fugas de scope.",
+    },
+    {
+      pregunta: "¿Qué tipo devuelve typeof null en JavaScript?",
+      opciones: [
+        { texto: "'null'" },
+        { texto: "'undefined'" },
+        {
+          texto:
+            "'object' — es un bug histórico del lenguaje que no se puede corregir por compatibilidad",
+          correcta: true,
+        },
+        { texto: "'nothing'" },
+      ],
+      explicacion:
+        "typeof null === 'object' es un error de diseño de las primeras versiones de JavaScript. Para verificar si algo es null, se usa comparación directa: valor === null.",
+    },
+    {
+      pregunta: "¿Qué es un template literal en JavaScript?",
+      opciones: [
+        { texto: "Un tipo de función especial" },
+        {
+          texto:
+            "Una forma de concatenar strings usando backticks `` y ${} para insertar expresiones directamente",
+          correcta: true,
+        },
+        { texto: "Un string con comillas simples" },
+        { texto: "Una plantilla HTML" },
+      ],
+      explicacion:
+        "En kidotag10 se usan para construir mensajes: `Alumno ${alumno.nombre} registrado a las ${hora}` es más legible que 'Alumno ' + alumno.nombre + ' registrado a las ' + hora.",
+    },
+    {
+      pregunta: "¿Cuál es el resultado de 0 == false en JavaScript?",
+      opciones: [
+        { texto: "false — son tipos distintos" },
+        {
+          texto:
+            "true — la comparación == hace coerción de tipos, convirtiendo ambos a número",
+          correcta: true,
+        },
+        { texto: "Error de tipo" },
+        { texto: "undefined" },
+      ],
+      explicacion:
+        "El operador == realiza coerción de tipos (type coercion). Para evitar bugs, siempre usa === (igualdad estricta), que compara valor Y tipo. 0 === false es false.",
+    },
+  ]}
+/>

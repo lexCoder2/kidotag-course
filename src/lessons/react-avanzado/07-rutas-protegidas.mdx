@@ -1,0 +1,323 @@
+# Rutas protegidas: solo usuarios autenticados
+
+En kidotag10, el dashboard y sus subpáginas solo son accesibles si hay un
+usuario autenticado. El componente `PrivateRoute` implementa este guard.
+
+## Implementación de PrivateRoute
+
+```jsx
+// web/src/components/PrivateRoute.jsx
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+function PrivateRoute({ rolesPermitidos }) {
+  const { usuario, cargando } = useAuth();
+
+  // Mientras verifica el token guardado, no redirigir todavía
+  if (cargando) return <div>Verificando sesión...</div>;
+
+  // Sin usuario → redirigir al login
+  if (!usuario) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Con rolesPermitidos, verificar el rol
+  if (rolesPermitidos && !rolesPermitidos.includes(usuario.rol)) {
+    return <Navigate to="/no-autorizado" replace />;
+  }
+
+  // Autenticado y autorizado → renderizar la ruta hija
+  return <Outlet />;
+}
+
+export default PrivateRoute;
+```
+
+## Uso en App.jsx
+
+```jsx
+<Routes>
+  <Route path="/login" element={<LoginPage />} />
+
+  {/* Todas las rutas dentro requieren estar autenticado */}
+  <Route path="/" element={<PrivateRoute />}>
+    <Route path="dashboard" element={<Dashboard />} />
+    <Route path="alumnos" element={<Alumnos />} />
+  </Route>
+
+  {/* Ruta solo para admin */}
+  <Route path="/admin" element={<PrivateRoute rolesPermitidos={["admin"]} />}>
+    <Route path="escuelas" element={<GestionEscuelas />} />
+  </Route>
+</Routes>
+```
+
+## Flujo de navegación
+
+```
+Usuario accede a /dashboard:
+  1. React Router renderiza <PrivateRoute />
+  2. PrivateRoute: useAuth() → ¿hay usuario?
+     ├── Cargando → mostrar spinner
+     ├── No autenticado → <Navigate to="/login" replace />
+     └── Autenticado → <Outlet /> (renderiza <Dashboard />)
+```
+
+<Mermaid titulo="Flujo de rutas protegidas">
+  {`flowchart TD
+  A[Usuario navega a /dashboard] --> B{¿Está cargando?}
+  B -->|Sí| C[Mostrar spinner]
+  B -->|No| D{¿Hay usuario en AuthContext?}
+  D -->|No| E[Redirigir a /login]
+  D -->|Sí| F{¿Requiere rol específico?}
+  F -->|No| G[Renderizar Dashboard]
+  F -->|Sí, y tiene el rol| G
+  F -->|Sí, pero no tiene el rol| H[Redirigir a /no-autorizado]`}
+</Mermaid>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué PrivateRoute espera con un spinner mientras 'cargando' es true?",
+      opciones: [
+        { texto: "Para que la UI se vea mejor" },
+        {
+          texto:
+            "Porque al iniciar la app, AuthContext verifica el token de localStorage de forma asíncrona — si se redirige al login inmediatamente, los usuarios con token válido serían expulsados antes de que la verificación termine",
+          correcta: true,
+        },
+        { texto: "React Router requiere una confirmación antes de navegar" },
+        { texto: "Para dar tiempo al servidor de responder" },
+      ],
+      explicacion:
+        "El useEffect en AuthContext que verifica el token es asíncrono. Al cargar la app, cargando=true hasta que termine. Si PrivateRoute no espera, el usuario=null inicial causaría una redirección falsa al login incluso con un token válido guardado.",
+    },
+    {
+      pregunta:
+        "¿Cómo implementa kidotag el patrón PrivateRoute para redirigir si no hay autenticación?",
+      opciones: [
+        { texto: "Con un try/catch en el router" },
+        {
+          texto:
+            "El componente PrivateRoute comprueba usuario del AuthContext y retorna Navigate al login si es null, o Outlet si está autenticado",
+          correcta: true,
+        },
+        { texto: "React Router lo maneja automáticamente con requireAuth" },
+        { texto: "Con un middleware en Express que redirige al cliente" },
+      ],
+      explicacion:
+        "Flujo: si cargando → mostrar Spinner; si no hay usuario → Navigate al login con replace (evita el historial); si hay usuario → Outlet (renderiza la ruta hija). El replace evita que el botón 'atrás' regrese al login.",
+    },
+    {
+      pregunta:
+        "¿Cómo se protege una ruta por rol en kidotag (solo admin puede ver /configuracion)?",
+      opciones: [
+        { texto: "Con una propiedad especial de Route llamada requiredRole" },
+        {
+          texto:
+            "PrivateRoute recibe una prop 'rol' y además verifica usuario.rol === rol, retornando Navigate a /inicio si no coincide",
+          correcta: true,
+        },
+        {
+          texto: "El servidor Express redirige peticiones de roles incorrectos",
+        },
+        {
+          texto:
+            "No es posible en React — la protección por roles es solo del backend",
+        },
+      ],
+      explicacion:
+        "La protección del frontend es UX (evitar que el usuario vea páginas que no le corresponden). La protección REAL es en el backend con los middlewares verificarToken + requireRole. Siempre ambas capas.",
+    },
+    {
+      pregunta:
+        "¿Por qué la protección de rutas en el frontend de kidotag NO es suficiente por sí sola?",
+      opciones: [
+        { texto: "Porque React Router es lento" },
+        {
+          texto:
+            "Porque cualquier usuario puede manipular localStorage, cambiar su rol en el token local y acceder a rutas protegidas del frontend. El backend debe validar el JWT en cada petición",
+          correcta: true,
+        },
+        {
+          texto: "La protección de frontend es suficiente para apps escolares",
+        },
+        { texto: "Porque localStorage no persiste en todos los navegadores" },
+      ],
+      explicacion:
+        "Seguridad en capas: el frontend decide qué mostrar según el rol (UX). El backend valida el JWT y el rol en cada petición API (seguridad real). Aunque alguien modifique el frontend o el localStorage, no puede obtener datos que el backend no autorice.",
+    },
+  ]}
+/>
+
+## Practica: simulador de ruta protegida
+
+<CodePlayground
+  titulo="PrivateRoute — simulador de login"
+  codigo={`import { useState, createContext, useContext } from "react";
+
+// ── Contexto de autenticación ──────────────────────────────
+const AuthCtx = createContext(null);
+
+function AuthProvider({ children }) {
+  const [usuario, setUsuario] = useState(null);
+  return <AuthCtx.Provider value={{ usuario, setUsuario }}>{children}</AuthCtx.Provider>;
+}
+
+// ── PrivateRoute: el mismo patrón que usa kidotag10 ────────
+function PrivateRoute({ children, rol }) {
+  const { usuario } = useContext(AuthCtx);
+
+  if (!usuario) {
+    return (
+      <div
+        style={{ padding: 20, background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca" }}
+      >
+        <h3>🔒 Acceso denegado</h3>
+        <p>Debes iniciar sesión para ver esta página.</p>
+      </div>
+    );
+  }
+
+  if (rol && usuario.rol !== rol) {
+    return (
+      <div
+        style={{ padding: 20, background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}
+      >
+        <h3>⛔ Sin permisos</h3>
+        <p>
+          Tu rol es <strong>{usuario.rol}</strong>, pero esta ruta requiere <strong>{rol}</strong>.
+        </p>
+      </div>
+    );
+  }
+
+  return children;
+}
+
+// ── Páginas de ejemplo ─────────────────────────────────────
+function Dashboard() {
+  const { usuario } = useContext(AuthCtx);
+  return (
+    <div
+      style={{ padding: 16, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0" }}
+    >
+      <h3>✅ Dashboard</h3>
+      <p>
+        Bienvenido, <strong>{usuario.nombre}</strong>
+        (rol: <em>{usuario.rol}</em>).
+      </p>
+    </div>
+  );
+}
+
+function AdminPanel() {
+  return (
+    <div
+      style={{ padding: 16, background: "#eff6ff", borderRadius: 8, border: "1px solid #bfdbfe" }}
+    >
+      <h3>🔧 Panel de Administrador</h3>
+      <p>
+        Solo visible si tu rol es <strong>admin</strong>.
+      </p>
+    </div>
+  );
+}
+
+// ── App principal ─────────────────────────────────────────
+function App() {
+  const { usuario, setUsuario } = useContext(AuthCtx);
+  const [pagina, setPagina] = useState("dashboard");
+
+  const usuarios = [
+    { nombre: "Ana García", rol: "admin" },
+    { nombre: "Luis López", rol: "profesor" },
+    { nombre: "Mia Torres", rol: "tutor" },
+  ];
+
+  if (!usuario) {
+    return (
+      <div style={{ fontFamily: "sans-serif", padding: 16 }}>
+        <h2>Selecciona un usuario para iniciar sesión:</h2>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {usuarios.map((u) => (
+            <button
+              key={u.nombre}
+              onClick={() => setUsuario(u)}
+              style={{
+                padding: "8px 14px",
+                background: "#274c77",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+              }}
+            >
+              {u.nombre} ({u.rol})
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ fontFamily: "sans-serif", padding: 16 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {["dashboard", "admin"].map((p) => (
+          <button
+            key={p}
+            onClick={() => setPagina(p)}
+            style={{
+              padding: "6px 14px",
+              background: pagina === p ? "#274c77" : "#e2e8f0",
+              color: pagina === p ? "#fff" : "#0f172a",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            {p}
+          </button>
+        ))}
+        <button
+          onClick={() => setUsuario(null)}
+          style={{
+            padding: "6px 14px",
+            background: "#b91c1c",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            marginLeft: "auto",
+          }}
+        >
+          Cerrar sesión
+        </button>
+      </div>
+
+      {pagina === "dashboard" && (
+        <PrivateRoute>
+          <Dashboard />
+        </PrivateRoute>
+      )}
+      {pagina === "admin" && (
+        <PrivateRoute rol="admin">
+          <AdminPanel />
+        </PrivateRoute>
+      )}
+    </div>
+  );
+}
+
+export default function Root() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  );
+}
+
+// createContext y useContext se importan directamente desde "react"`}
+/>

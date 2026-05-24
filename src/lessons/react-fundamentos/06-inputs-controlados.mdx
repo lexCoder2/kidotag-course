@@ -1,0 +1,511 @@
+# Inputs controlados y formularios
+
+En React, un **input controlado** es aquel cuyo valor está sincronizado con
+el estado de React mediante `value` + `onChange`.
+
+## Input controlado básico
+
+```jsx
+import { useState } from "react";
+
+function FormLogin() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault(); // ← evitar recarga de página
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, rol: "profesor" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      localStorage.setItem("token", json.data.token);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="correo@escuela.mx"
+        required
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Contraseña"
+        required
+      />
+      {error && <p className="error">{error}</p>}
+      <button type="submit">Iniciar sesión</button>
+    </form>
+  );
+}
+```
+
+## Select controlado
+
+```jsx
+const [rol, setRol] = useState("profesor");
+
+<select value={rol} onChange={(e) => setRol(e.target.value)}>
+  <option value="profesor">Profesor</option>
+  <option value="tutor">Tutor / Padre</option>
+  <option value="admin">Administrador</option>
+</select>;
+```
+
+## Formularios con múltiples campos (objeto de estado)
+
+```jsx
+function FormNuevoAlumno({ onGuardar }) {
+  const [form, setForm] = useState({
+    nombre: "",
+    grado: "1",
+    grupoId: "",
+  });
+
+  // Un solo handler para todos los campos
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    await onGuardar(form);
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="nombre" value={form.nombre} onChange={handleChange} />
+      <input name="grado" value={form.grado} onChange={handleChange} />
+      <input name="grupoId" value={form.grupoId} onChange={handleChange} />
+      <button type="submit">Guardar</button>
+    </form>
+  );
+}
+```
+
+<Callout variante="tip" titulo="¿Cuándo usar un objeto de estado vs múltiples useState?">
+  Usa un objeto cuando los campos están relacionados (pertenecen al mismo
+  formulario). Usa `useState` separados cuando son estados independientes.
+  El objeto de estado facilita el submit: `fetch(..., { body: JSON.stringify(form) })`.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Qué hace e.preventDefault() en el handler onSubmit de un formulario?",
+      opciones: [
+        { texto: "Evita que los datos se envíen al servidor" },
+        {
+          texto:
+            "Evita el comportamiento predeterminado del navegador de recargar la página al enviar un form — permite manejar el submit con JavaScript",
+          correcta: true,
+        },
+        { texto: "Limpia los campos del formulario" },
+        { texto: "Valida los campos antes de enviar" },
+      ],
+      explicacion:
+        "Por defecto, un <form> sin preventDefault() hace una petición HTTP tradicional y recarga la página. En React SPA, queremos manejar el submit con fetch y actualizar el estado sin recargar.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre un input controlado y uno no controlado en React?",
+      opciones: [
+        { texto: "Los controlados son más lentos" },
+        {
+          texto:
+            "Controlado: el valor del input está en estado de React (value + onChange). No controlado: el DOM gestiona el valor (useRef para leerlo)",
+          correcta: true,
+        },
+        { texto: "No hay diferencia funcional" },
+        { texto: "Los no controlados requieren validación manual" },
+      ],
+      explicacion:
+        "En kidotag, el formulario de nuevo alumno usa inputs controlados: <input value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} />. Esto permite validar en tiempo real y resetear el form fácilmente.",
+    },
+    {
+      pregunta:
+        "¿Por qué es mejor manejar todos los campos de un formulario con un solo objeto de estado en lugar de múltiples useState?",
+      opciones: [
+        { texto: "Porque useState no acepta múltiples llamadas" },
+        {
+          texto:
+            "Porque simplifica el reset (setForm(initialState)) y el envío (se pasa el objeto completo al fetch) cuando los campos están relacionados",
+          correcta: true,
+        },
+        { texto: "Por razones de rendimiento" },
+        { texto: "Los múltiples useState causan errores en formularios" },
+      ],
+      explicacion:
+        "En el form de kidotag: const [form, setForm] = useState({ nombre: '', matricula: '', grupoId: '' }). Al enviar: await crearAlumno(form). Al resetear: setForm({ nombre: '', matricula: '', grupoId: '' }).",
+    },
+    {
+      pregunta: "¿Cómo se maneja un <select> controlado en React?",
+      opciones: [
+        {
+          texto:
+            "Con el atributo selected en la opción correcta, igual que en HTML",
+        },
+        {
+          texto:
+            "Con value en el <select> y onChange en el <select> — React mueve el atributo selected del <option> al <select>",
+          correcta: true,
+        },
+        { texto: "Los <select> no pueden ser controlados en React" },
+        { texto: "Con defaultValue solamente" },
+      ],
+      explicacion:
+        "En kidotag para el selector de grupo: <select value={form.grupoId} onChange={e => setForm({...form, grupoId: e.target.value})}><option value=''>Seleccionar...</option>{grupos.map(g => <option key={g._id} value={g._id}>{g.nombre}</option>)}</select>.",
+    },
+  ]}
+/>
+
+## Practica: formulario de nuevo alumno
+
+<CodePlayground
+  titulo="kidotag-frontend — L6: Formulario controlado FormularioAlumno"
+  plantilla="react"
+  entryFile="/FormularioAlumno.jsx"
+  objetivo="Agregar un formulario controlado para registrar nuevos alumnos y agregarlos a la lista."
+  archivos={{
+    '/styles.css': { code: `body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f8fafc;
+}
+.app {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+.app h1 {
+  color: #1e293b;
+  font-size: 1.4rem;
+  border-bottom: 2px solid #274c77;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+.badge-regular {
+  background: #fef9c3;
+  color: #854d0e;
+}
+.badge-riesgo {
+  background: #fee2e2;
+  color: #b91c1c;
+}`, readOnly: true },
+    '/TarjetaAlumno.jsx': { code: `function getBadge(a) {
+  if (a >= 90) return { clase: "badge-ok", texto: "Excelente" };
+  if (a >= 75) return { clase: "badge-regular", texto: "Regular" };
+  return { clase: "badge-riesgo", texto: "En riesgo" };
+}
+export default function TarjetaAlumno({ alumno }) {
+  const badge = getBadge(alumno.asistencia);
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "10px 14px",
+        borderRadius: 8,
+        marginBottom: 8,
+        background: alumno.presente ? "white" : "#fef9f9",
+        border: "1px solid " + (alumno.presente ? "#e2e8f0" : "#fecaca"),
+      }}
+    >
+      <div>
+        <strong>{alumno.nombre}</strong>
+        <span style={{ marginLeft: 8, color: "#64748b", fontSize: 13 }}>{alumno.grado}</span>
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <span className={"badge " + badge.clase}>{badge.texto}</span>
+        <span style={{ fontSize: 18 }}>{alumno.presente ? "✓" : "✗"}</span>
+      </div>
+    </div>
+  );
+}`, readOnly: true },
+    '/api.js': { code: `// api.js — Simula llamadas HTTP al servidor KidoTag
+function delay(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+export async function fetchAlumnos() {
+  await delay(800);
+  return [
+    {
+      id: 1,
+      nombre: "Ana Garcia",
+      grado: "3A",
+      asistencia: 95,
+      presente: true,
+    },
+    {
+      id: 2,
+      nombre: "Luis Mendez",
+      grado: "3A",
+      asistencia: 78,
+      presente: false,
+    },
+    {
+      id: 3,
+      nombre: "Mia Torres",
+      grado: "4B",
+      asistencia: 62,
+      presente: false,
+    },
+    {
+      id: 4,
+      nombre: "Carlos Ruiz",
+      grado: "4B",
+      asistencia: 100,
+      presente: true,
+    },
+  ];
+}
+
+export async function guardarAsistencia(alumnos) {
+  await delay(300);
+  return { ok: true, fecha: new Date().toLocaleDateString("es-MX") };
+}`, readOnly: true },
+    '/ListaAlumnos.jsx': { code: `import TarjetaAlumno from "./TarjetaAlumno";
+
+export default function ListaAlumnos({ alumnos, onToggle, onGuardar, mensaje }) {
+  const presentes = alumnos.filter((a) => a.presente).length;
+  return (
+    <section>
+      <p style={{ color: "#64748b", fontSize: 13, margin: "0 0 1rem" }}>
+        {presentes} de {alumnos.length} presentes
+      </p>
+      {alumnos.map((a) => (
+        <div key={a.id} onClick={() => onToggle(a.id)} style={{ cursor: "pointer" }}>
+          <TarjetaAlumno alumno={a} />
+        </div>
+      ))}
+      <button
+        onClick={onGuardar}
+        style={{
+          marginTop: "1rem",
+          padding: "8px 20px",
+          background: "#274c77",
+          color: "white",
+          border: "none",
+          borderRadius: 6,
+          cursor: "pointer",
+        }}
+      >
+        Guardar asistencia
+      </button>
+      {mensaje && <p style={{ color: "#15803d", fontWeight: 600 }}>{mensaje}</p>}
+    </section>
+  );
+}`, readOnly: true },
+    '/App.jsx': { code: `import { useState, useEffect } from "react";
+import "./styles.css";
+import ListaAlumnos from "./ListaAlumnos";
+import FormularioAlumno from "./FormularioAlumno";
+import { fetchAlumnos, guardarAsistencia } from "./api";
+
+export default function App() {
+  const [alumnos, setAlumnos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [mensaje, setMensaje] = useState("");
+  const [mostrarForm, setMostrarForm] = useState(false);
+
+  useEffect(() => {
+    fetchAlumnos().then((d) => {
+      setAlumnos(d);
+      setLoading(false);
+    });
+  }, []);
+
+  const togglePresente = (id) =>
+    setAlumnos((prev) => prev.map((a) => (a.id === id ? { ...a, presente: !a.presente } : a)));
+
+  const guardar = async () => {
+    const r = await guardarAsistencia(alumnos);
+    setMensaje("Guardado: " + r.fecha);
+    setTimeout(() => setMensaje(""), 3000);
+  };
+
+  const agregar = (alumno) => {
+    setAlumnos((prev) => [...prev, { ...alumno, id: Date.now(), presente: true }]);
+    setMostrarForm(false);
+  };
+
+  if (loading)
+    return (
+      <div className="app">
+        <h1>KidoTag</h1>
+        <p style={{ color: "#64748b" }}>Cargando...</p>
+      </div>
+    );
+
+  return (
+    <div className="app">
+      <h1>KidoTag — Asistencia</h1>
+      {mostrarForm ? (
+        <FormularioAlumno onAgregar={agregar} onCancelar={() => setMostrarForm(false)} />
+      ) : (
+        <>
+          <button
+            onClick={() => setMostrarForm(true)}
+            style={{
+              marginBottom: "1rem",
+              padding: "6px 16px",
+              background: "#274c77",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            {" "}
+            + Agregar alumno
+          </button>
+          <ListaAlumnos
+            alumnos={alumnos}
+            onToggle={togglePresente}
+            onGuardar={guardar}
+            mensaje={mensaje}
+          />
+        </>
+      )}
+    </div>
+  );
+}`, readOnly: true },
+    '/FormularioAlumno.jsx': `// FormularioAlumno.jsx — Inputs controlados (NUEVA)
+import { useState } from "react";
+
+const GRADOS = ["1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B"];
+
+// Props: onAgregar (callback con el nuevo alumno), onCancelar
+export default function FormularioAlumno({ onAgregar, onCancelar }) {
+  // Estado local: solo existe mientras el formulario esta montado
+  const [form, setForm] = useState({ nombre: "", grado: "3A", asistencia: 100 });
+  const [error, setError] = useState("");
+
+  // Actualiza un campo del objeto sin perder los demas
+  const cambiar = (campo, valor) => {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+    setError("");
+  };
+
+  const enviar = (e) => {
+    e.preventDefault(); // evita que la pagina se recargue
+    if (!form.nombre.trim()) {
+      setError("El nombre es requerido.");
+      return;
+    }
+    onAgregar({ ...form, asistencia: Number(form.asistencia) });
+  };
+
+  const estiloInput = {
+    display: "block",
+    width: "100%",
+    padding: "8px",
+    borderRadius: 6,
+    border: "1px solid #cbd5e1",
+    marginBottom: 12,
+    boxSizing: "border-box",
+  };
+
+  return (
+    <form onSubmit={enviar}>
+      <h2 style={{ marginTop: 0 }}>Nuevo alumno</h2>
+
+      <label style={{ fontSize: 13, color: "#64748b" }}>Nombre completo</label>
+      <input
+        value={form.nombre}
+        onChange={(e) => cambiar("nombre", e.target.value)}
+        placeholder="Ej: Maria Lopez"
+        style={estiloInput}
+      />
+      {error && <p style={{ color: "#b91c1c", fontSize: 13, margin: "-8px 0 12px" }}>{error}</p>}
+
+      <label style={{ fontSize: 13, color: "#64748b" }}>Grado</label>
+      <select
+        value={form.grado}
+        onChange={(e) => cambiar("grado", e.target.value)}
+        style={estiloInput}
+      >
+        {GRADOS.map((g) => (
+          <option key={g}>{g}</option>
+        ))}
+      </select>
+
+      <label style={{ fontSize: 13, color: "#64748b" }}>Asistencia %</label>
+      <input
+        type="number"
+        min="0"
+        max="100"
+        value={form.asistencia}
+        onChange={(e) => cambiar("asistencia", e.target.value)}
+        style={estiloInput}
+      />
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          type="submit"
+          style={{
+            padding: "8px 20px",
+            background: "#274c77",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          Agregar
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          style={{
+            padding: "8px 20px",
+            background: "#e2e8f0",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}`,
+}}
+pasosIncrementales={[
+"Ejecuta, haz clic en '+ Agregar alumno', llena el formulario y verifica que el alumno aparece en la lista.",
+"Intenta guardar sin nombre — verifica que aparece el mensaje de error.",
+"Agrega un campo 'matricula' (text input) al formulario y al objeto form.",
+"Agrega validacion para que la matricula tenga al menos 4 caracteres. Muestra un error si no cumple.",
+]}
+retoFinal="Agrega un campo 'email' opcional al formulario. Si se escribe algo, valida que contenga '@'. Si no cumple, muestra un error. Si esta vacio, se agrega el alumno sin email."
+/>

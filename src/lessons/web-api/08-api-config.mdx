@@ -1,0 +1,135 @@
+# Módulo de configuración de la API
+
+En lugar de escribir la URL base en cada componente, kidotag10 centraliza
+la configuración de la API en un módulo dedicado.
+
+## Qué es VITE_API_URL
+
+```bash
+# web/.env
+VITE_API_URL=http://localhost:4000/api
+```
+
+```bash
+# web/.env.production
+VITE_API_URL=https://api.kidotag.mx/api
+```
+
+Solo las variables con prefijo `VITE_` están disponibles en el navegador.
+Vite las embebe en el bundle en build time (no en runtime).
+
+## El módulo src/config/api.js
+
+```javascript
+// web/src/config/api.js de kidotag10
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+
+export const API_ENDPOINTS = {
+  LOGIN: `${BASE_URL}/auth/login`,
+  ALUMNOS: `${BASE_URL}/alumnos`,
+  GRUPOS: `${BASE_URL}/grupos`,
+  ASISTENCIAS: `${BASE_URL}/asistencias`,
+  ANUNCIOS: `${BASE_URL}/anuncios`,
+  TUTORES: `${BASE_URL}/tutores`,
+  MENSAJES: `${BASE_URL}/mensajes`,
+};
+
+export default BASE_URL;
+```
+
+```javascript
+// Uso en un componente:
+import { API_ENDPOINTS } from "../config/api";
+
+const res = await fetch(API_ENDPOINTS.ALUMNOS, {
+  headers: { Authorization: `Bearer ${token}` },
+});
+```
+
+## Ventajas de centralizar la URL
+
+```
+Sin centralizar:
+  Dashboard.jsx:   fetch('http://localhost:4000/api/alumnos')
+  Grupos.jsx:      fetch('http://localhost:4000/api/grupos')
+  Asistencias.jsx: fetch('http://localhost:4000/api/asistencias')
+  → Al cambiar de localhost a producción: editar 20+ archivos
+
+Con centralizar:
+  .env:            VITE_API_URL=https://api.kidotag.mx/api
+  → Cambiar un solo valor → todo actualizado
+```
+
+<Callout variante="warning" titulo="VITE_ solo es en Vite (web de kidotag10)">
+  En Create React App, el prefijo es `REACT_APP_`. En Next.js es `NEXT_PUBLIC_`.
+  En Vite es `VITE_`. Siempre revisar la documentación del bundler que uses.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué las variables de entorno en Vite necesitan el prefijo VITE_?",
+      opciones: [
+        { texto: "Por convención estética del equipo de Vite" },
+        {
+          texto:
+            "Vite solo expone al código del navegador las variables con prefijo VITE_ — las demás quedan solo en el servidor de build, evitando filtrar secrets",
+          correcta: true,
+        },
+        { texto: "Sin el prefijo, Node.js no puede leer las variables" },
+        { texto: "Es un requisito del ECMAScript" },
+      ],
+      explicacion:
+        "Las variables sin VITE_ (como DATABASE_URL o JWT_SECRET) no deben llegar al navegador — serían visibles en el bundle para cualquiera que abra DevTools. Vite filtra explícitamente para evitar fugas accidentales.",
+    },
+    {
+      pregunta:
+        "¿Cómo centraliza kidotag la URL base de la API para no repetirla en cada petición fetch?",
+      opciones: [
+        { texto: "Copiar y pegar la URL en cada archivo" },
+        {
+          texto:
+            "Definir const API_URL = import.meta.env.VITE_API_URL en un archivo de configuración y exportarla para usar en todos los servicios",
+          correcta: true,
+        },
+        { texto: "Guardar la URL en el AuthContext" },
+        { texto: "Usar un proxy de Express para todas las peticiones" },
+      ],
+      explicacion:
+        "En kidotag: src/config/api.js exporta API_URL. Si el servidor cambia de puerto o dominio, solo hay que actualizar el .env — no buscar todas las ocurrencias de 'localhost:4000' en el código.",
+    },
+    {
+      pregunta:
+        "¿Por qué las variables VITE_ son visibles en el bundle de producción del navegador?",
+      opciones: [
+        { texto: "Es un fallo de seguridad de Vite" },
+        {
+          texto:
+            "Porque Vite las incrusta en el JavaScript en tiempo de build — el navegador no tiene acceso al .env, los valores se 'queman' en el código durante la compilación",
+          correcta: true,
+        },
+        { texto: "El navegador lee el archivo .env directamente" },
+        { texto: "Solo son visibles en desarrollo, no en producción" },
+      ],
+      explicacion:
+        "Vite reemplaza import.meta.env.VITE_API_URL con el string literal 'https://api.kidotag.mx' en el bundle. Cualquiera puede verlo en DevTools → Sources. Por eso solo van valores públicos ahí (URLs de API), nunca claves privadas.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre import.meta.env.VITE_API_URL en desarrollo vs producción?",
+      opciones: [
+        { texto: "Son exactamente iguales" },
+        {
+          texto:
+            "Desarrollo: toma el valor del .env.local. Producción: toma el valor del .env.production o variables de entorno configuradas en el servidor de CI/CD",
+          correcta: true,
+        },
+        { texto: "En producción, import.meta.env no está disponible" },
+        { texto: "En producción siempre retorna undefined" },
+      ],
+      explicacion:
+        "Vite carga archivos .env en este orden de prioridad: .env.local > .env.[mode] > .env. En un deploy de Vercel o Railway, se configuran las variables de entorno en el panel de la plataforma, que las inyecta durante el build.",
+    },
+  ]}
+/>

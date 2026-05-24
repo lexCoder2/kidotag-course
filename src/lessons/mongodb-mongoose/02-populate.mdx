@@ -1,0 +1,257 @@
+# populate(): joins entre colecciones
+
+MongoDB no tiene JOINs como SQL, pero Mongoose ofrece `.populate()` para
+hacer esas consultas de dos pasos automáticamente.
+
+## ¿Cómo funciona?
+
+```javascript
+// Sin populate — solo tienes el ObjectId
+const alumno = await Alumno.findById(id);
+// alumno.tutor = ObjectId("507f19...")  ← solo el ID
+
+// Con populate — Mongoose hace una segunda consulta automáticamente
+const alumno = await Alumno.findById(id).populate("tutor");
+// alumno.tutor = { _id: "507f19...", nombre: "Carlos García", email: "..." }
+```
+
+## Populate en kidotag10
+
+```javascript
+// src/controllers/alumno.controller.js
+async function obtenerAlumno(req, res) {
+  const alumno = await Alumno.findById(req.params.id)
+    .populate("tutor", "nombre email telefono") // solo esos campos
+    .populate("grupo", "nombre grado"); // populate múltiple
+
+  if (!alumno) {
+    return res.status(404).json({ ok: false, error: "Alumno no encontrado" });
+  }
+
+  res.json({ ok: true, data: alumno });
+}
+```
+
+## Selección de campos en populate
+
+```javascript
+// Todos los campos del tutor
+.populate('tutor')
+
+// Solo nombre y email (sin password)
+.populate('tutor', 'nombre email')
+
+// Excluir el password (-)
+.populate('tutor', '-password')
+
+// Populate con condición
+.populate({
+  path: 'tutor',
+  select: 'nombre email',
+  match: { activo: true },
+})
+```
+
+<Callout variante="warning" titulo="Nunca hagas populate del password">
+  Cuando populas un usuario, siempre excluye el campo password:
+  `.populate('tutor', '-password')`. Aunque el hash no sea el texto plano, nunca
+  debe exponerse en respuestas de la API.
+</Callout>
+
+## populate vs aggregation
+
+```javascript
+// populate: simple, legible, dos queries
+const alumnos = await Alumno.find({ grupo: grupoId }).populate(
+  "tutor",
+  "nombre",
+);
+
+// $lookup (aggregation): una sola query, más potente
+const alumnos = await Alumno.aggregate([
+  { $match: { grupo: grupoId } },
+  {
+    $lookup: {
+      from: "tutors",
+      localField: "tutor",
+      foreignField: "_id",
+      as: "tutor",
+    },
+  },
+  { $unwind: "$tutor" },
+]);
+```
+
+Para la mayoría de casos en kidotag10, populate es suficiente y más legible.
+Aggregation brilla en reportes complejos o cuando el rendimiento es crítico.
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Qué hace Mongoose internamente cuando ejecutas .populate('tutor')?",
+      opciones: [
+        { texto: "Hace un JOIN directo en MongoDB" },
+        {
+          texto:
+            "Ejecuta una segunda query a la colección tutors usando los ObjectIds encontrados",
+          correcta: true,
+        },
+        {
+          texto: "Duplica los datos del tutor dentro del documento del alumno",
+        },
+        { texto: "Crea un índice temporal para la consulta" },
+      ],
+      explicacion:
+        "populate hace dos queries: primero busca los alumnos, luego hace una segunda query a la colección de tutores usando los ObjectIds. Por eso se llama 'manual reference resolution'.",
+    },
+    {
+      pregunta:
+        "¿Cómo se limitan los campos retornados al hacer populate en kidotag10?",
+      opciones: [
+        {
+          texto:
+            "No se pueden limitar — populate siempre trae todo el documento",
+        },
+        {
+          texto:
+            "Usando el segundo argumento de populate: .populate('tutor', 'nombre email telefono')",
+          correcta: true,
+        },
+        { texto: "Con un WHERE cláusula dentro de populate" },
+        { texto: "Usando .lean() después de populate" },
+      ],
+      explicacion:
+        "Al hacer .populate('tutor', 'nombre email -_id'), solo traes esos campos del tutor. Esto es importante por seguridad (no exponer passwordHash) y rendimiento (menos datos por la red).",
+    },
+    {
+      pregunta: "¿Qué es el populate virtual en Mongoose?",
+      opciones: [
+        { texto: "Un populate que solo funciona en memoria" },
+        {
+          texto:
+            "Una forma de hacer populate desde el lado opuesto de la relación sin guardar el array de referencias en el documento padre",
+          correcta: true,
+        },
+        { texto: "Populate con datos falsos para desarrollo" },
+        { texto: "Un populate que se ejecuta automáticamente en cada find" },
+      ],
+      explicacion:
+        "En kidotag10, el schema Alumno puede tener un virtual que popula todas sus Asistencias desde la colección Asistencia usando alumnoId como referencia — sin guardar el array de IDs en el documento Alumno.",
+    },
+    {
+      pregunta:
+        "¿Cuándo conviene usar el aggregation pipeline de MongoDB en lugar de populate?",
+      opciones: [
+        { texto: "Siempre — es más moderno que populate" },
+        {
+          texto:
+            "Para reportes complejos con filtros, agrupaciones y cálculos sobre los datos relacionados en una sola operación de base de datos",
+          correcta: true,
+        },
+        { texto: "Cuando la colección tiene menos de 100 documentos" },
+        { texto: "Solo cuando populate falla" },
+      ],
+      explicacion:
+        "Para el reporte de asistencias de kidotag10 (contar presentes/ausentes por grupo, por fecha), $lookup (equivalente a populate en aggregation) + $group + $project en un pipeline es más eficiente que varios populates encadenados.",
+    },
+  ]}
+/>
+
+## Practica: simula populate
+
+<CodePlayground
+  titulo="populate() — resolución de referencias"
+  codigo={`import { useState } from "react";
+
+// ── Datos simulados (como si fueran colecciones de MongoDB) ──
+const TUTORES = {
+"t1": { \_id: "t1", nombre: "Carlos García", email: "carlos@mail.com", telefono: "555-1001" },
+"t2": { \_id: "t2", nombre: "María López", email: "maria@mail.com", telefono: "555-1002" },
+"t3": { \_id: "t3", nombre: "Pedro Ruiz", email: "pedro@mail.com", telefono: "555-1003" },
+};
+
+const GRUPOS = {
+"g1": { \_id: "g1", nombre: "Grupo A", grado: "3° Primaria" },
+"g2": { \_id: "g2", nombre: "Grupo B", grado: "6° Primaria" },
+};
+
+const ALUMNOS = [
+{ _id: "a1", nombre: "Ana García", tutor: "t1", grupo: "g1" },
+{ _id: "a2", nombre: "Luis López", tutor: "t2", grupo: "g1" },
+{ _id: "a3", nombre: "Mia Torres", tutor: "t1", grupo: "g2" },
+{ _id: "a4", nombre: "Pedro Díaz", tutor: "t3", grupo: "g2" },
+];
+
+// ── Simula populate (lo que hace Mongoose internamente) ──────
+function simularPopulate(alumno, campos) {
+const result = { ...alumno };
+if (campos.includes("tutor")) {
+result.tutor = TUTORES[alumno.tutor]; // segunda query
+}
+if (campos.includes("grupo")) {
+result.grupo = GRUPOS[alumno.grupo]; // segunda query
+}
+return result;
+}
+
+export default function App() {
+  const [modo, setModo] = useState("sin-populate");
+  const [campos, setCampos] = useState(["tutor"]);
+
+const toggleCampo = (c) =>
+setCampos(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+
+const datos = ALUMNOS.map(a =>
+modo === "con-populate" ? simularPopulate(a, campos) : a
+);
+
+return (
+<div style={{ fontFamily: "sans-serif", padding: 16 }}>
+<h2>populate() — visualizador</h2>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        {["sin-populate", "con-populate"].map(m => (
+          <button key={m} onClick={() => setModo(m)}
+            style={{
+              padding: "6px 14px", border: "none", borderRadius: 6,
+              cursor: "pointer", fontWeight: 600,
+              background: modo === m ? "#274c77" : "#e2e8f0",
+              color: modo === m ? "#fff" : "#0f172a",
+            }}>
+            {m === "sin-populate" ? "Sin .populate()" : "Con .populate()"}
+          </button>
+        ))}
+      </div>
+
+      {modo === "con-populate" && (
+        <div style={{ marginBottom: 12, display: "flex", gap: 8 }}>
+          {["tutor", "grupo"].map(c => (
+            <label key={c} style={{ display: "flex", alignItems: "center",
+                                    gap: 4, cursor: "pointer", fontSize: 13 }}>
+              <input type="checkbox" checked={campos.includes(c)}
+                onChange={() => toggleCampo(c)} />
+              populate("{c}")
+            </label>
+          ))}
+        </div>
+      )}
+
+      <div style={{ overflowX: "auto" }}>
+        <pre style={{
+          background: "#0f172a", color: "#e2e8f0",
+          padding: 14, borderRadius: 8, fontSize: 12, lineHeight: 1.6,
+        }}>
+          {JSON.stringify(datos, null, 2)}
+        </pre>
+      </div>
+
+      <p style={{ marginTop: 10, fontSize: 12, color: "#64748b" }}>
+        Sin populate: solo ves IDs como "t1", "g1".
+        Con populate: Mongoose hace una segunda query y reemplaza el ID por el objeto completo.
+      </p>
+    </div>
+
+);
+}`}
+/>

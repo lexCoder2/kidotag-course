@@ -1,0 +1,175 @@
+# Swagger UI y ejercicio final
+
+<LibCard
+  nombre="swagger-ui-express"
+  version="5.0.0"
+  npm="swagger-ui-express"
+  categoria="devtools"
+  docs="https://github.com/scottie1984/swagger-ui-express"
+  descripcion="Middleware Express que sirve la interfaz web de Swagger UI, permitiendo explorar e interactuar con la API directamente desde el navegador."
+  porque="Swagger UI convierte el spec OpenAPI en una interfaz interactiva visual. Los desarrolladores frontend pueden ver todos los endpoints, hacer peticiones de prueba y ver las respuestas sin necesidad de Postman."
+  usoEjemplo={`// src/app.js de kidotag10
+const swaggerUi   = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+explorer: true,
+customSiteTitle: 'Kidotag API Docs',
+}));
+// → Disponible en http://localhost:4000/api-docs`}
+alternativas={[
+{ nombre: "Redoc", porque_no: "Más elegante visualmente, pero read-only (no permite hacer peticiones). swagger-ui-express permite testear la API directamente." },
+{ nombre: "Postman", porque_no: "Excelente para testing, pero requiere instalación por separado. Swagger UI está embebido en el servidor." },
+]}
+/>
+
+## La interfaz de Swagger UI
+
+Cuando visitas `http://localhost:4000/api-docs`, verás:
+
+```
+┌─────────────────────────────────────────┐
+│  Kidotag API  v1.0.0                    │
+├─────────────────────────────────────────┤
+│ ▶ Auth                                  │
+│   POST /api/auth/login                  │
+│                                         │
+│ ▶ Alumnos                               │
+│   GET  /api/alumnos                     │
+│   POST /api/alumnos                     │
+│   GET  /api/alumnos/{id}                │
+│                                         │
+│ ▶ Asistencias                           │
+│   POST /api/asistencias                 │
+│   GET  /api/asistencias/reporte         │
+└─────────────────────────────────────────┘
+```
+
+## Flujo de testing con Swagger UI
+
+```
+1. POST /api/auth/login → Obtener el JWT
+   Body: { "email": "profesor@escuela.mx", "password": "Test1234!", "rol": "profesor" }
+
+2. Copiar el token de la respuesta
+
+3. Clic en "Authorize" → pegar el token sin "Bearer "
+   (Swagger UI añade "Bearer " automáticamente)
+
+4. Ahora puedes llamar a los endpoints protegidos
+   GET /api/alumnos → devuelve la lista de alumnos de tu escuela
+```
+
+## Ejercicio: documentar un nuevo endpoint
+
+Añade la documentación JSDoc a este endpoint ficticio:
+
+```javascript
+// src/routes/alumno.routes.js
+
+/**
+ * @swagger
+ * /api/alumnos/{id}/asignar-nfc:
+ *   patch:
+ *     summary: ???  ← escribe el summary
+ *     tags: [???]   ← elige el tag
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *         description: ID del alumno
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [uid_nfc]
+ *             properties:
+ *               uid_nfc:
+ *                 type: string
+ *                 example: "A1B2C3D4"
+ *     responses:
+ *       200:
+ *         description: ???  ← describe la respuesta
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.patch("/:id/asignar-nfc", verificarToken, esProfesor, asignarNfc);
+```
+
+<Callout variante="tip" titulo="Tip: usa los tags para agrupar endpoints">
+  Los `tags` en cada endpoint agrupan los endpoints en la UI de Swagger.
+  kidotag10 usa: `Auth`, `Alumnos`, `Tutores`, `Grupos`, `Asistencias`,
+  `Anuncios`, `Mensajes`.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "En Swagger UI, cuando haces clic en 'Authorize' y pegas el token, ¿qué debe escribirse?",
+      opciones: [
+        { texto: "Bearer eyJhbGciOiJIUzI1NiJ9..." },
+        {
+          texto: "eyJhbGciOiJIUzI1NiJ9... (solo el token, sin 'Bearer')",
+          correcta: true,
+        },
+        { texto: "JWT eyJhbGciOiJIUzI1NiJ9..." },
+        { texto: "El email y password del usuario" },
+      ],
+      explicacion:
+        "Swagger UI con securityScheme type: 'bearer' añade automáticamente el prefijo 'Bearer ' al token. Si pegas 'Bearer token', resulta en 'Bearer Bearer token' y la autenticación falla.",
+    },
+    {
+      pregunta: "¿Cómo se prueba el flujo completo de kidotag10 en Swagger UI?",
+      opciones: [
+        { texto: "Abriendo múltiples pestañas del navegador" },
+        {
+          texto:
+            "Primero POST /api/auth/login para obtener el token, copiar el token, Authorize, y luego 'Try it out' en las rutas protegidas",
+          correcta: true,
+        },
+        { texto: "Importando el token desde un archivo .env" },
+        { texto: "El token se rellena automáticamente" },
+      ],
+      explicacion:
+        "El flujo de prueba: 1) Expand POST /api/auth/login → Try it out → enviar credenciales → copiar el token de la respuesta. 2) Clic en Authorize (🔒) → pegar token → Authorize. 3) Ahora todas las rutas protegidas pueden probarse con ese token.",
+    },
+    {
+      pregunta:
+        "¿Qué muestra Swagger UI cuando una ruta tiene múltiples códigos de respuesta documentados?",
+      opciones: [
+        { texto: "Solo el código 200 — los errores se ignoran" },
+        {
+          texto:
+            "Una sección 'Responses' con cada código, su descripción y el schema del cuerpo de respuesta",
+          correcta: true,
+        },
+        { texto: "Un error de formato en el spec" },
+        { texto: "Los códigos de error solo en la consola del navegador" },
+      ],
+      explicacion:
+        "Documentar múltiples respuestas es buena práctica. Para POST /api/alumnos en kidotag10: 201 (creado), 400 (body inválido), 401 (sin token), 409 (matrícula duplicada). El desarrollador que integra sabe exactamente qué manejar.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre el 'Try it out' de Swagger UI y un test con Jest?",
+      opciones: [
+        { texto: "Son equivalentes en propósito" },
+        {
+          texto:
+            "Try it out es prueba manual interactiva en el navegador. Jest es prueba automatizada que se ejecuta con npm test y puede correr en CI/CD",
+          correcta: true,
+        },
+        { texto: "Try it out es más confiable que Jest" },
+        { texto: "Jest no puede testear APIs Express" },
+      ],
+      explicacion:
+        "Try it out en Swagger UI es para explorar y verificar manualmente que un endpoint funciona. Los tests Jest/Supertest son reproducibles, se ejecutan en cada PR y detectan regresiones automáticamente. Ambos son complementarios.",
+    },
+  ]}
+/>

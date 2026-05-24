@@ -1,0 +1,176 @@
+# Condicionales y bucles sin dolor
+
+Programar es tomar decisiones y repetir acciones.
+
+- **Condicional**: "si pasa esto, haz esto".
+- **Bucle**: "repite esto varias veces".
+
+## Condicional basico
+
+```javascript
+if (asistencia >= 90) {
+  console.log("Excelente");
+} else {
+  console.log("Necesita apoyo");
+}
+```
+
+## Bucle basico
+
+```javascript
+for (let i = 1; i <= 3; i++) {
+  console.log("Alumno", i);
+}
+```
+
+<CodePlayground
+  titulo="kidotag-utils — L2: Condicionales y bucles"
+  plantilla="vanilla"
+  soloConsola={true}
+  entryFile="/asistencia.js"
+  mostrarConsola={true}
+  objetivo="Agregar logica de decisiones y bucles al modulo de asistencia de KidoTag."
+  archivos={{
+    '/index.html': { code: `<!DOCTYPE html><html lang="es"><body><p style="font-family:sans-serif;color:#94a3b8;padding:1rem">Ver consola ↓</p><script type="module" src="./index.js"></script></body></html>`, hidden: true },
+    '/config.js': { code: `// config.js (L1 — solo lectura)
+export const ESCUELA = "Primaria Benito Juarez";
+export const CICLO = "2025-2026";
+export const MAX_POR_GRUPO = 35;
+export const alumnoBase = {
+  id: "a001",
+  nombre: "Ana Garcia",
+  grado: "3A",
+  presente: true,
+  tutor: null,
+};`, readOnly: true },
+    '/asistencia.js': `// asistencia.js — Logica de estados y reporte (NUEVA)
+import { ESCUELA } from "./config.js";
+
+// Condicional: determina el estado segun porcentaje
+export function getEstado(porcentaje) {
+  if (porcentaje >= 90) return "Excelente";
+  if (porcentaje >= 75) return "Regular";
+  return "En riesgo";
+}
+
+// Bucle: recorre la lista e imprime el reporte
+export function imprimirReporte(alumnos) {
+  console.log("--- Reporte de " + ESCUELA + " ---");
+  for (var i = 0; i < alumnos.length; i++) {
+    var a = alumnos[i];
+    console.log(i + 1 + ". " + a.nombre + ": " + a.asistencia + "% — " + getEstado(a.asistencia));
+  }
+  console.log("Total: " + alumnos.length + " alumnos");
+}`,
+    '/index.js': `import { getEstado, imprimirReporte } from "./asistencia.js";
+
+var alumnosDemo = [
+  { nombre: "Ana Garcia", asistencia: 95 },
+  { nombre: "Luis Mendez", asistencia: 78 },
+  { nombre: "Mia Torres", asistencia: 62 },
+  { nombre: "Carlos Ruiz", asistencia: 100 },
+];
+
+console.log("=== KidoTag Utils v2 ===");
+
+console.log("getEstado(95):", getEstado(95));
+console.log("getEstado(78):", getEstado(78));
+console.log("getEstado(60):", getEstado(60));
+
+imprimirReporte(alumnosDemo);`,
+}}
+pasosIncrementales={[
+"Ejecuta y observa como getEstado() devuelve valores distintos segun el numero.",
+"Cambia los umbrales: 85 para Excelente, 70 para Regular. Ejecuta de nuevo.",
+"Agrega un quinto alumno a alumnosDemo en index.js con asistencia de tu eleccion.",
+"Modifica imprimirReporte para mostrar entre parentesis cuantos alumnos quedan en riesgo.",
+]}
+retoFinal="Agrega un contador 'enRiesgo' en imprimirReporte usando un bucle for. Muestra el total al final del reporte: 'X de Y alumnos en riesgo'."
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Cuál es la diferencia principal entre for...of y for...in en JavaScript?",
+      opciones: [
+        {
+          texto:
+            "for...in itera sobre índices numéricos; for...of sobre letras",
+        },
+        {
+          texto:
+            "for...of itera sobre valores de un iterable (array, string); for...in itera sobre las claves enumerables de un objeto",
+          correcta: true,
+        },
+        { texto: "Son sinónimos" },
+        { texto: "for...in es más rápido" },
+      ],
+      explicacion:
+        "En kidotag10 se usa for...of para iterar arrays de alumnos: for (const alumno of alumnos) { ... }. Usar for...in con arrays es un error común — itera los índices como strings ('0', '1', ...) y puede incluir propiedades del prototipo.",
+    },
+    {
+      pregunta:
+        "¿Cuándo conviene usar el operador ternario en lugar de un if/else?",
+      opciones: [
+        { texto: "Nunca — el ternario es confuso" },
+        {
+          texto:
+            "Cuando el resultado es una expresión simple de dos posibilidades — hace el código más conciso en una sola línea",
+          correcta: true,
+        },
+        { texto: "Solo dentro de funciones flecha" },
+        { texto: "Siempre — es más rápido que if/else" },
+      ],
+      explicacion:
+        "En JSX es muy común: `<span>{alumno.presente ? 'Presente' : 'Ausente'}</span>`. Para lógica compleja o múltiples condiciones, if/else es más legible.",
+    },
+    {
+      pregunta: "¿Qué hace `break` dentro de un bucle?",
+      opciones: [
+        { texto: "Salta a la siguiente iteración" },
+        {
+          texto:
+            "Termina el bucle inmediatamente y continúa con el código después del bucle",
+          correcta: true,
+        },
+        { texto: "Pausa el bucle temporalmente" },
+        { texto: "Es equivalente a return" },
+      ],
+      explicacion:
+        "break es útil cuando encuentras lo que buscas: al encontrar el alumno con un uid NFC específico, haces break para no seguir iterando. continue en cambio solo salta la iteración actual y sigue con la siguiente.",
+    },
+    {
+      pregunta:
+        "¿Qué método de array permite ejecutar una función para cada elemento sin retornar un nuevo array?",
+      opciones: [
+        { texto: "map() — transforma cada elemento" },
+        {
+          texto:
+            "forEach() — ejecuta una función por cada elemento como efecto secundario, no retorna nada útil",
+          correcta: true,
+        },
+        { texto: "filter() — filtra elementos" },
+        { texto: "find() — busca un elemento" },
+      ],
+      explicacion:
+        "forEach es equivalente a un for...of pero como método de array. map, filter y reduce son preferidos en React porque son expresiones que retornan valores y pueden usarse en JSX.",
+    },
+    {
+      pregunta:
+        "En kidotag10, ¿qué método de array usarías para obtener solo los alumnos presentes de una lista?",
+      opciones: [
+        { texto: "map() — para transformar la lista" },
+        {
+          texto:
+            "filter() — retorna un nuevo array con los elementos que cumplen la condición",
+          correcta: true,
+        },
+        { texto: "forEach() — para iterar y crear otro array manualmente" },
+        { texto: "find() — retorna el primer elemento" },
+      ],
+      explicacion:
+        "`alumnos.filter(a => a.presente)` retorna un nuevo array con solo los presentes. No modifica el array original — fundamental en React para mantener la inmutabilidad del estado.",
+    },
+  ]}
+/>

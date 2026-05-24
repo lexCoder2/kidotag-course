@@ -1,0 +1,172 @@
+# AuthContext: manejo de autenticación global
+
+El AuthContext centraliza el estado de autenticación en kidotag10: el token
+JWT, los datos del usuario y las funciones de login/logout.
+
+## Implementación del AuthContext
+
+```jsx
+// web/src/context/AuthContext.jsx
+import { createContext, useContext, useState, useEffect } from "react";
+
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+  const [usuario, setUsuario] = useState(null);
+  const [token, setToken] = useState(() => localStorage.getItem("token"));
+  const [cargando, setCargando] = useState(true);
+
+  // Al iniciar la app: verificar si el token guardado sigue válido
+  useEffect(() => {
+    if (token) {
+      try {
+        // Decodificar el payload del JWT (no verifica la firma)
+        const payload = JSON.parse(atob(token.split(".")[1]));
+
+        // Verificar si no expiró
+        if (payload.exp * 1000 > Date.now()) {
+          setUsuario(payload); // { id, nombre, rol, escuelaId }
+        } else {
+          logout(); // token expirado
+        }
+      } catch {
+        logout(); // token inválido
+      }
+    }
+    setCargando(false);
+  }, []);
+
+  async function login(email, password, rol) {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, rol }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error);
+
+    const { token: nuevoToken, usuario: datosUsuario } = json.data;
+    localStorage.setItem("token", nuevoToken);
+    setToken(nuevoToken);
+    setUsuario(datosUsuario);
+  }
+
+  function logout() {
+    localStorage.removeItem("token");
+    setToken(null);
+    setUsuario(null);
+  }
+
+  return (
+    <AuthContext.Provider value={{ usuario, token, login, logout, cargando }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => useContext(AuthContext);
+```
+
+## Uso en la app
+
+```jsx
+// Cualquier componente puede saber quién está logueado
+function Header() {
+  const { usuario, logout } = useAuth();
+  return (
+    <header>
+      <span>Hola, {usuario?.nombre}</span>
+      <span className="badge">{usuario?.rol}</span>
+      <button onClick={logout}>Cerrar sesión</button>
+    </header>
+  );
+}
+
+// Login page
+function LoginPage() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    await login(email, password, rol);
+    navigate("/dashboard");
+  }
+}
+```
+
+<Callout variante="info" titulo="atob() decodifica el payload del JWT">
+  Un JWT es base64url(header).base64url(payload).firma
+  `atob(token.split('.')[1])` decodifica el payload a JSON sin verificar la
+  firma. Esto es seguro para leer los datos del usuario en el frontend — la
+  verificación real de la firma ocurre en el servidor con `jwt.verify()`.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué el AuthContext verifica si el token expiró al iniciar la app (useEffect inicial)?",
+      opciones: [
+        { texto: "Para renovar el token automáticamente" },
+        {
+          texto:
+            "Porque si el usuario cerró el navegador ayer con un token de 7 días, al volver hoy podría usar un token ya expirado — la verificación previene sesiones fantasma",
+          correcta: true,
+        },
+        { texto: "Para validar el token contra el servidor" },
+        { texto: "React borra localStorage al cerrar" },
+      ],
+      explicacion:
+        "localStorage persiste entre sesiones del navegador. Sin verificar la expiración, un token del mes pasado seguiría cargando el estado de usuario. El payload del JWT contiene 'exp' (Unix timestamp de expiración) que se puede verificar en el cliente.",
+    },
+    {
+      pregunta:
+        "¿Qué información debe exponer el AuthContext de kidotag para que los demás componentes funcionen?",
+      opciones: [
+        { texto: "Solo el token JWT como string" },
+        {
+          texto:
+            "El objeto usuario con id/rol/escuelaId, las funciones login y logout, y el estado de carga inicial (cargando)",
+          correcta: true,
+        },
+        { texto: "Solo una función fetchUsuario()" },
+        { texto: "Los datos del alumno actualmente seleccionado" },
+      ],
+      explicacion:
+        "El PrivateRoute necesita usuario (para redirigir) y cargando (para esperar). Los componentes de UI necesitan usuario.rol para mostrar opciones según el rol. Login necesita la función login. Logout necesita la función logout.",
+    },
+    {
+      pregunta:
+        "¿Cuál es el patrón correcto para persistir la autenticación en kidotag entre recargas de página?",
+      opciones: [
+        { texto: "Guardar el objeto usuario en sessionStorage" },
+        {
+          texto:
+            "Guardar el token JWT en localStorage al hacer login y leerlo en el useEffect inicial del AuthContext para restaurar el estado del usuario",
+          correcta: true,
+        },
+        { texto: "El servidor envía el usuario en cada petición" },
+        { texto: "React mantiene el estado automáticamente entre recargas" },
+      ],
+      explicacion:
+        "Al hacer login: localStorage.setItem('token', jwt). Al iniciar: const token = localStorage.getItem('token'); si hay token, verificar y setUsuario(payload). Al logout: localStorage.removeItem('token'); setUsuario(null).",
+    },
+    {
+      pregunta:
+        "¿Por qué el estado 'cargando' del AuthContext es necesario durante la verificación inicial del token?",
+      opciones: [
+        { texto: "Para mostrar un logo animado" },
+        {
+          texto:
+            "Para que PrivateRoute espere antes de decidir si redirigir al login — sin él, el usuario null inicial causaría una redirección falsa aunque tenga token válido",
+          correcta: true,
+        },
+        { texto: "El estado cargando no afecta a PrivateRoute" },
+        { texto: "Para bloquear peticiones a la API durante la carga" },
+      ],
+      explicacion:
+        "El flujo: app carga → usuario=null + cargando=true → useEffect verifica token → setUsuario(payload) + setCargando(false). PrivateRoute: si cargando, mostrar Spinner. Sin esto, en el flash inicial usuario=null haría Navigate al login.",
+    },
+  ]}
+/>

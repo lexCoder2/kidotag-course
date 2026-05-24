@@ -1,0 +1,211 @@
+# Configuración del entorno
+
+Para desarrollar y ejecutar kidotag10 necesitas instalar algunas herramientas. Aquí está todo lo que necesitas.
+
+## Herramientas requeridas
+
+### 1. Node.js 18+ y npm
+
+```bash
+# Verificar versión actual
+node --version   # debe ser 18.x o superior
+npm --version    # debe ser 9.x o superior
+
+# Si no tienes Node.js, descárgalo de:
+# https://nodejs.org (elige la versión LTS)
+```
+
+### 2. MongoDB
+
+**Opción A — MongoDB local (para desarrollo):**
+
+```bash
+# Instalar via Homebrew (macOS)
+brew tap mongodb/brew
+brew install mongodb-community
+
+# Iniciar el servicio
+brew services start mongodb-community
+
+# O en Windows, descargar el instalador de:
+# https://www.mongodb.com/try/download/community
+```
+
+**Opción B — MongoDB Atlas (nube, recomendado):**
+
+1. Crear cuenta gratuita en [mongodb.com/atlas](https://www.mongodb.com/atlas)
+2. Crear un cluster (M0 Free Tier)
+3. Copiar la Connection String al archivo `.env`
+
+### 3. VS Code con extensiones recomendadas
+
+<CodePlayground
+  titulo="Extensiones recomendadas — pega esto en VS Code"
+  archivos={{
+    '/extensiones.txt': `# Extensiones recomendadas para desarrollar kidotag10
+
+# REST API Testing
+
+Thunder Client
+
+# MongoDB
+
+MongoDB for VS Code
+
+# JavaScript/Node.js
+
+ESLint
+Prettier - Code formatter
+Error Lens
+
+# React
+
+ES7+ React/Redux/React-Native snippets
+Auto Import
+
+# Git
+
+GitLens — Git supercharged
+
+# Cómo instalar todas de una vez en la terminal:
+
+code --install-extension rangav.vscode-thunder-client
+code --install-extension mongodb.mongodb-vscode
+code --install-extension dbaeumer.vscode-eslint
+code --install-extension esbenp.prettier-vscode
+`,
+}}
+plantilla="static"
+readOnly
+/>
+
+## Clonar y configurar kidotag10
+
+```bash
+# 1. Clonar el repositorio
+git clone <url-del-repo> kidotag10
+cd kidotag10
+
+# 2. Configurar la API
+cd api
+npm install
+cp .env.example .env
+# Editar .env con tus valores
+
+# 3. Configurar el frontend web
+cd ../web
+npm install
+cp .env.example .env
+# Editar VITE_API_URL con la URL de tu API
+```
+
+## El archivo .env de la API
+
+```bash
+# kidotag10/api/.env
+PORT=3001
+MONGO_URI=mongodb://localhost:27017/kidotag
+JWT_SECRET=una_clave_secreta_muy_larga_y_aleatoria_aqui
+FRONTEND_URL=http://localhost:5173
+NODE_ENV=development
+```
+
+<Callout variante="warning" titulo="Nunca subas .env a Git">
+  El archivo `.env` contiene credenciales sensibles. Está en el `.gitignore` del
+  proyecto. Usa `.env.example` (sin valores reales) para documentar las
+  variables requeridas.
+</Callout>
+
+## Verificar que todo funciona
+
+```bash
+# Terminal 1: iniciar MongoDB (si es local)
+mongod --dbpath ./data/db
+
+# Terminal 2: iniciar la API
+cd api && npm run dev
+# Debería ver: "Servidor corriendo en puerto 3001"
+# Abrir: http://localhost:3001/api-docs
+
+# Terminal 3: iniciar el frontend
+cd web && npm run dev
+# Abrir: http://localhost:5173
+```
+
+<Mermaid
+  titulo="Stack completo de desarrollo"
+  diagrama={`graph LR
+  subgraph "Tu computadora"
+    ESP32[ESP32 simulado]
+    DB[(MongoDB :27017)]
+    API[API Express :3001]
+    WEB[React/Vite :5173]
+  end
+  ESP32 -->|POST| API
+  API <--> DB
+  WEB <-->|REST + Socket.IO| API`}
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué se usa un archivo .env.example en lugar de compartir el .env directamente?",
+      opciones: [
+        { texto: "Por una convención arbitraria sin razón técnica" },
+        {
+          texto:
+            "Para documentar qué variables son necesarias sin exponer los valores reales (credenciales)",
+          correcta: true,
+        },
+        { texto: "Porque .env no puede ser leído por Node.js directamente" },
+      ],
+      explicacion:
+        ".env.example muestra la estructura de variables con valores de ejemplo o en blanco. El .env real con credenciales se ignora en Git para no exponer contraseñas, API keys y URIs de base de datos.",
+    },
+    {
+      pregunta:
+        "¿Por qué se recomienda usar Node.js LTS en lugar de la versión Current?",
+      opciones: [
+        { texto: "Porque LTS tiene más features que Current" },
+        {
+          texto:
+            "Porque LTS (Long Term Support) recibe correcciones de seguridad durante más tiempo — es la versión estable recomendada para proyectos en producción",
+          correcta: true,
+        },
+        { texto: "Porque Current no soporta npm" },
+        { texto: "Por razones de licencia" },
+      ],
+      explicacion:
+        "Las versiones LTS tienen soporte garantizado durante 30 meses. Las versiones Current incorporan features nuevas más rápido pero con menos estabilidad. Para kidotag10, la estabilidad es prioritaria.",
+    },
+    {
+      pregunta:
+        "¿Para qué sirve nodemon en el desarrollo del servidor kidotag10?",
+      opciones: [
+        { texto: "Para conectarse a MongoDB automáticamente" },
+        {
+          texto:
+            "Para reiniciar el servidor Node.js automáticamente cuando detecta cambios en los archivos fuente",
+          correcta: true,
+        },
+        { texto: "Para ejecutar tests automáticamente" },
+        { texto: "Es el gestor de paquetes alternativo a npm" },
+      ],
+      explicacion:
+        "Sin nodemon, cada vez que modificas un archivo del servidor tendrías que detenerlo (Ctrl+C) y ejecutar node src/index.js manualmente. nodemon automatiza ese ciclo, haciendo el desarrollo más ágil.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la instrucción correcta para instalar las dependencias de la API de kidotag10?",
+      opciones: [
+        { texto: "node install" },
+        { texto: "npm install en la carpeta kidotag10/api/", correcta: true },
+        { texto: "npm start" },
+        { texto: "npx install dependencies" },
+      ],
+      explicacion:
+        "npm install lee el archivo package.json de la carpeta actual y descarga todas las dependencias declaradas en dependencies y devDependencies a la carpeta node_modules/.",
+    },
+  ]}
+/>

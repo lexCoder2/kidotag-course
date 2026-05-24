@@ -1,0 +1,309 @@
+# Arquitectura MVC en kidotag10
+
+kidotag10 usa el patrón **MVC** (Model-View-Controller) para organizar el código del backend. Cada parte tiene una responsabilidad clara.
+
+## Las 4 capas de la API
+
+```
+src/
+├── routes/          → ¿QUÉ URL responde a qué?
+│   ├── alumno.routes.js
+│   └── auth.routes.js
+│
+├── controllers/     → ¿CÓMO procesar la petición?
+│   ├── alumno.controller.js
+│   └── auth.controller.js
+│
+├── models/          → ¿QUÉ estructura tienen los datos?
+│   ├── alumno.model.js
+│   └── grupo.model.js
+│
+└── middlewares/     → ¿QUÉ validar antes de llegar al controller?
+    └── auth.middleware.js
+```
+
+<Mermaid
+  titulo="Flujo de una petición en kidotag10"
+  diagrama={`sequenceDiagram
+  participant C as Cliente
+  participant R as Router
+  participant MW as Middleware
+  participant CTRL as Controller
+  participant M as Model (Mongoose)
+  participant DB as MongoDB
+  C->>R: GET /api/alumnos
+  R->>MW: verificarToken()
+  MW->>MW: jwt.verify()
+  MW->>CTRL: next() → getAlumnos()
+  CTRL->>M: Alumno.find({ activo: true })
+  M->>DB: Query
+  DB-->>M: Documentos
+  M-->>CTRL: Array de alumnos
+  CTRL-->>C: res.json({ ok: true, data })`}
+/>
+
+## Rutas: solo el mapa de URLs
+
+```javascript
+// src/routes/alumno.routes.js
+const router = require("express").Router();
+const {
+  getAlumnos,
+  crearAlumno,
+  getAlumno,
+  actualizarAlumno,
+} = require("../controllers/alumno.controller");
+const {
+  verificarToken,
+  esProfesor,
+  esAdmin,
+} = require("../middlewares/auth.middleware");
+
+// GET /api/alumnos
+router.get("/", verificarToken, esProfesor, getAlumnos);
+
+// POST /api/alumnos
+router.post("/", verificarToken, esAdmin, crearAlumno);
+
+// GET /api/alumnos/:id
+router.get("/:id", verificarToken, esProfesor, getAlumno);
+
+// PUT /api/alumnos/:id
+router.put("/:id", verificarToken, esAdmin, actualizarAlumno);
+
+module.exports = router;
+```
+
+## Controladores: la lógica de negocio
+
+```javascript
+// src/controllers/alumno.controller.js
+
+const getAlumnos = async (req, res) => {
+  try {
+    const { grado, activo } = req.query;
+    const filtro = {};
+    if (grado) filtro.grado = grado;
+    if (activo !== undefined) filtro.activo = activo === "true";
+
+    const alumnos = await Alumno.find(filtro)
+      .populate("grupo", "nombre grado") // Join con Grupo
+      .sort({ nombre: 1 });
+
+    res.json({ ok: true, data: alumnos });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+};
+
+const crearAlumno = async (req, res) => {
+  try {
+    const { nombre, matricula, grupoId } = req.body;
+
+    // Verificar matrícula única
+    const existe = await Alumno.findOne({ matricula });
+    if (existe) {
+      return res
+        .status(409)
+        .json({ ok: false, error: "Matrícula ya registrada" });
+    }
+
+    const alumno = await Alumno.create({ nombre, matricula, grupo: grupoId });
+    res.status(201).json({ ok: true, data: alumno });
+  } catch (error) {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ ok: false, error: error.message });
+    }
+    res.status(500).json({ ok: false, error: error.message });
+  }
+};
+```
+
+<CodePlayground
+  titulo="Simular el flujo MVC completo"
+  archivos={{
+    '/App.jsx': `import { useState } from 'react'
+
+// ── Capa MODEL (Mongoose simulado) ────────────────
+let baseDeDatos = {
+alumnos: [
+{ _id: '1', nombre: 'Ana García', matricula: '2024-001', grado: '3A', activo: true },
+{ _id: '2', nombre: 'Luis Pérez', matricula: '2024-002', grado: '2B', activo: true },
+]
+}
+
+const Alumno = {
+find: (filtro = {}) => baseDeDatos.alumnos.filter(a =>
+Object.entries(filtro).every(([k, v]) => a[k] === v)
+),
+findOne: (filtro) => baseDeDatos.alumnos.find(a =>
+Object.entries(filtro).every(([k, v]) => a[k] === v)
+),
+create: (datos) => {
+const nuevo = { \_id: String(Date.now()), ...datos }
+baseDeDatos.alumnos.push(nuevo)
+return nuevo
+},
+}
+
+// ── Capa MIDDLEWARE ───────────────────────────────
+function verificarToken(token) {
+if (!token || token !== 'Bearer token-valido') {
+return { ok: false, status: 401, error: 'Token requerido' }
+}
+return { ok: true, usuario: { rol: 'admin' } }
+}
+
+// ── Capa CONTROLLER ───────────────────────────────
+function getAlumnos(query, token) {
+const auth = verificarToken(token)
+if (!auth.ok) return { status: auth.status, body: { ok: false, error: auth.error } }
+
+const alumnos = Alumno.find(query)
+return { status: 200, body: { ok: true, data: alumnos, total: alumnos.length } }
+}
+
+function crearAlumno(body, token) {
+const auth = verificarToken(token)
+if (!auth.ok) return { status: auth.status, body: { ok: false, error: auth.error } }
+
+if (!body.nombre || !body.matricula) {
+return { status: 400, body: { ok: false, error: 'nombre y matricula son requeridos' } }
+}
+const existe = Alumno.findOne({ matricula: body.matricula })
+if (existe) {
+return { status: 409, body: { ok: false, error: 'Matrícula ya registrada' } }
+}
+const nuevo = Alumno.create(body)
+return { status: 201, body: { ok: true, data: nuevo } }
+}
+
+// ── Capa ROUTER (vista en el playground) ─────────
+const RUTAS = [
+{ label: 'GET /alumnos (con token)', fn: () => getAlumnos({}, 'Bearer token-valido') },
+{ label: 'GET /alumnos?grado=3A', fn: () => getAlumnos({ grado: '3A' }, 'Bearer token-valido') },
+{ label: 'POST /alumnos (nuevo)', fn: () => crearAlumno({ nombre: 'Sara Ríos', matricula: '2024-003', grado: '1A' }, 'Bearer token-valido') },
+{ label: 'POST /alumnos (duplicado)',fn: () => crearAlumno({ nombre: 'Otro', matricula: '2024-001' }, 'Bearer token-valido') },
+{ label: 'GET /alumnos (sin token)', fn: () => getAlumnos({}, '') },
+]
+
+const statusColor = s => s < 300 ? '#dcfce7' : s < 500 ? '#fef9c3' : '#fee2e2'
+
+export default function App() {
+  const [res, setRes] = useState(null)
+  return (
+    <div style={{ fontFamily: 'sans-serif', padding: '1.5rem', maxWidth: 500 }}>
+      <h2>🏗️ Flujo MVC: Rutas → Controller → Model</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {RUTAS.map(r => (
+          <button key={r.label} onClick={() => setRes(r.fn())} style={{
+            background: 'white', border: '1px solid #e2e8f0',
+            borderRadius: 6, padding: '8px 12px', cursor: 'pointer', textAlign: 'left',
+          }}>
+            <code style={{ fontSize: 13 }}>{r.label}</code>
+          </button>
+        ))}
+      </div>
+      {res && (
+        <div style={{ marginTop: '1rem' }}>
+          <span style={{ background: statusColor(res.status), padding: '4px 10px', borderRadius: 6, fontWeight: 700 }}>
+            HTTP {res.status}
+          </span>
+          <pre style={{ background: '#0f172a', color: '#86efac', padding: '1rem', borderRadius: 8, marginTop: 8, fontSize: 12, overflow: 'auto' }}>
+            {JSON.stringify(res.body, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+`,
+  }}
+/>
+
+<Callout variante="kidotag" titulo="Montaje en app.js de kidotag10">
+  En `src/app.js`, todas las rutas se montan con un prefijo `/api`:
+  <pre
+    style={{
+      background: "#0f172a",
+      color: "#86efac",
+      padding: "0.75rem",
+      borderRadius: 6,
+      fontSize: "0.8rem",
+      overflow: "auto",
+      marginTop: "0.5rem",
+    }}
+  >
+    {`app.use('/api/alumnos',     require('./routes/alumno.routes'))
+app.use('/api/auth',        require('./routes/auth.routes'))
+app.use('/api/asistencias', require('./routes/asistencia.routes'))`}
+  </pre>
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Qué responsabilidad tiene el Controller en el patrón MVC de kidotag10?",
+      opciones: [
+        { texto: "Definir la estructura de los datos en la base de datos" },
+        {
+          texto:
+            "Recibir la petición, aplicar lógica de negocio y enviar la respuesta JSON",
+          correcta: true,
+        },
+        { texto: "Definir qué URL corresponde a qué función" },
+      ],
+      explicacion:
+        "El Controller procesa la petición: extrae datos de req, aplica reglas de negocio, consulta el Model y envía la respuesta. Las rutas mapean URLs a controllers, y los models definen la estructura de datos.",
+    },
+    {
+      pregunta:
+        "¿Qué responsabilidad tiene el Model en la arquitectura de kidotag10?",
+      opciones: [
+        { texto: "Procesar la lógica de negocio de la petición" },
+        {
+          texto:
+            "Definir la estructura de datos (schema), validaciones y el acceso a MongoDB",
+          correcta: true,
+        },
+        { texto: "Renderizar la respuesta HTML" },
+        { texto: "Gestionar las rutas de la API" },
+      ],
+      explicacion:
+        "En kidotag10, los models Mongoose (alumno.model.js, asistencia.model.js, etc.) definen los schemas, las validaciones y los hooks. El controller usa el model para hacer queries: Alumno.findById(), Asistencia.create(), etc.",
+    },
+    {
+      pregunta:
+        "¿Qué responsabilidad tienen los archivos de routes/ en kidotag10?",
+      opciones: [
+        { texto: "Ejecutar la lógica de negocio" },
+        {
+          texto:
+            "Mapear URLs y métodos HTTP a sus controladores correspondientes, aplicando middlewares específicos de esa ruta",
+          correcta: true,
+        },
+        { texto: "Definir los schemas de MongoDB" },
+        { texto: "Gestionar las conexiones WebSocket" },
+      ],
+      explicacion:
+        "El router de alumnos hace: router.get('/', auth, alumnoController.listar); router.post('/', auth, esProfesor, alumnoController.crear). Conecta URLs + métodos + middlewares + controllers sin tener lógica propia.",
+    },
+    {
+      pregunta:
+        "¿Cuál es el principal beneficio de separar el código en Model, View y Controller?",
+      opciones: [
+        { texto: "Hace el código más rápido en ejecución" },
+        {
+          texto:
+            "Facilita el mantenimiento: cada archivo tiene una sola responsabilidad, es fácil encontrar dónde está cada tipo de código y testear partes de forma aislada",
+          correcta: true,
+        },
+        { texto: "Reduce el número de archivos necesarios" },
+        { texto: "Es un requisito de Express para funcionar" },
+      ],
+      explicacion:
+        "Sin MVC, kidotag10 tendría todo en un solo archivo: validaciones, queries a MongoDB, lógica de asistencia, y definición de rutas mezcladas. Con MVC, si necesitas cambiar la validación de un alumno, sabes exactamente que está en alumno.model.js o alumno.controller.js.",
+    },
+  ]}
+/>

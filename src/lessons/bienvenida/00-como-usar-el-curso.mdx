@@ -1,0 +1,157 @@
+# Cómo usar este curso
+
+Este curso es 100% interactivo. No necesitas instalar nada para aprender — todo corre en tu navegador.
+
+## Herramientas disponibles en cada lección
+
+### Editor de código en vivo (Sandpack)
+
+En muchas lecciones encontrarás un editor donde puedes **modificar el código y ver el resultado al instante**:
+
+<CodePlayground
+  titulo="Prueba el editor — modifica este código"
+  archivos={{
+    '/App.jsx': `export default function App() {
+  // 👋 ¡Modifica este componente!
+  const mensaje = "Hola desde el curso kidotag10";
+  const color = "#274c77";
+
+  return (
+    <div
+      style={{
+        fontFamily: "sans-serif",
+        padding: "2rem",
+        textAlign: "center",
+      }}
+    >
+      <h1 style={{ color }}>{mensaje}</h1>
+      <p>Edita el texto y el color de arriba. Los cambios se ven al instante.</p>
+      <button
+        onClick={() => alert("¡Funciona! 🎉")}
+        style={{
+          marginTop: "1rem",
+          background: color,
+          color: "white",
+          border: "none",
+          padding: "10px 24px",
+          borderRadius: 8,
+          cursor: "pointer",
+          fontSize: 16,
+        }}
+      >
+        Haz clic aquí
+      </button>
+    </div>
+  );
+}`,
+}}
+/>
+
+### Quizzes de comprensión
+
+Al final de cada lección hay preguntas para consolidar lo aprendido. Tu progreso se guarda automáticamente.
+
+### Diagramas de arquitectura
+
+Usamos diagramas Mermaid para visualizar flujos y relaciones:
+
+<Mermaid
+  titulo="Arquitectura de kidotag10"
+  diagrama={`graph TD
+  ESP32[ESP32 + Lector NFC] -->|POST asistencia| API[API Express/Node.js]
+  API -->|guardar| DB[(MongoDB)]
+  API -->|socket.io| WEB[Web React]
+  API -->|socket.io| MOV[App Flutter]
+  WEB -->|REST + JWT| API
+  MOV -->|REST + JWT| API`}
+/>
+
+### Playground de la API
+
+En las lecciones de backend puedes probar la API de kidotag10 directamente:
+
+<ApiPlayground />
+
+## Cómo guardar tu progreso
+
+Al completar cada lección, haz clic en el botón **"Marcar como completada"** que aparece al final. Tu avance se guarda en el navegador y puedes ver el porcentaje de completado en la barra lateral.
+
+<Callout variante="tip" titulo="Consejo">
+  Si tienes experiencia previa, puedes saltar libremente entre lecciones usando
+  la barra lateral. Cada lección es autocontenida y puedes hacer el curso en
+  cualquier orden.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Dónde se guarda tu progreso en este curso?",
+      opciones: [
+        { texto: "En un servidor remoto con tu cuenta" },
+        { texto: "En el localStorage de tu navegador", correcta: true },
+        { texto: "En un archivo en tu computadora" },
+      ],
+      explicacion:
+        "El progreso se guarda localmente en el localStorage de tu navegador. No necesitas crear una cuenta.",
+    },
+    {
+      pregunta:
+        "¿Qué ocurre con tu progreso si borras los datos del navegador?",
+      opciones: [
+        { texto: "Se recupera automáticamente desde la nube" },
+        {
+          texto:
+            "Se pierde — localStorage es un almacenamiento local por navegador y dispositivo",
+          correcta: true,
+        },
+        { texto: "Se exporta automáticamente a un archivo" },
+      ],
+      explicacion:
+        "localStorage es una base de datos del navegador, no de internet. Al borrar datos del navegador o usar otro dispositivo, el progreso no está disponible allí.",
+    },
+    {
+      pregunta:
+        "¿Para qué sirve el botón 'Animar flujo' en los bloques de código?",
+      opciones: [
+        { texto: "Para ejecutar el código en el servidor de KidoTag" },
+        {
+          texto:
+            "Para resaltar línea por línea y mostrar los valores de las variables en ese punto de ejecución",
+          correcta: true,
+        },
+        { texto: "Para guardar el código en tu cuenta" },
+      ],
+      explicacion:
+        "El animador recorre el código línea a línea y muestra un panel con los valores actuales de las variables — útil para entender el flujo sin abrir DevTools.",
+    },
+    {
+      pregunta:
+        "¿Qué son los sandboxes (CodePlayground) que aparecen en las lecciones?",
+      opciones: [
+        { texto: "Ejercicios decorativos sin impacto en el aprendizaje" },
+        {
+          texto:
+            "Entornos de código ejecutable directamente en el navegador donde puedes editar y ver resultados en tiempo real",
+          correcta: true,
+        },
+        { texto: "Archivos que debes descargar y ejecutar localmente" },
+      ],
+      explicacion:
+        "Los sandboxes usan Sandpack, un entorno React/Node en el navegador. Puedes modificar el código y ver los cambios al instante, sin instalar nada.",
+    },
+    {
+      pregunta: "¿Cuándo se marca una lección como completada?",
+      opciones: [
+        { texto: "Al abrir la lección por primera vez" },
+        { texto: "Al leer hasta el final del contenido" },
+        {
+          texto:
+            "Al aprobar el quiz de la lección con al menos una respuesta correcta",
+          correcta: true,
+        },
+      ],
+      explicacion:
+        "El progreso se actualiza cuando envías las respuestas del quiz. El puntaje (0-100) queda guardado junto al estado de completado de cada lección.",
+    },
+  ]}
+/>

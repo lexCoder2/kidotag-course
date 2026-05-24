@@ -1,0 +1,330 @@
+# Estados de la UI: loading, error y vacío
+
+Una buena UX comunica siempre el estado de la aplicación al usuario.
+kidotag10 tiene tres estados que manejar en cada vista de datos.
+
+## Los tres estados que toda vista debe manejar
+
+```jsx
+function ListaAlumnos() {
+  const { datos: alumnos, cargando, error } = useFetch("/alumnos");
+
+  // 1. Estado de carga
+  if (cargando) return <EstadoCargando />;
+
+  // 2. Estado de error
+  if (error) return <EstadoError mensaje={error} onReintentar={() => {}} />;
+
+  // 3. Estado vacío
+  if (!alumnos || alumnos.length === 0) return <EstadoVacio />;
+
+  // 4. Estado con datos
+  return (
+    <ul>
+      {alumnos.map((a) => (
+        <AlumnoItem key={a._id} alumno={a} />
+      ))}
+    </ul>
+  );
+}
+```
+
+## Componentes de estado reutilizables
+
+```jsx
+// Spinner de carga
+function EstadoCargando({ texto = "Cargando..." }) {
+  return (
+    <div className="estado-cargando">
+      <div className="spinner" aria-label="Cargando" />
+      <p>{texto}</p>
+    </div>
+  );
+}
+
+// Error con opción de reintentar
+function EstadoError({ mensaje, onReintentar }) {
+  return (
+    <div className="estado-error" role="alert">
+      <span>⚠️</span>
+      <p>{mensaje}</p>
+      {onReintentar && <button onClick={onReintentar}>Reintentar</button>}
+    </div>
+  );
+}
+
+// Estado vacío con acción
+function EstadoVacio({ titulo = "Sin datos", accion }) {
+  return (
+    <div className="estado-vacio">
+      <p>{titulo}</p>
+      {accion}
+    </div>
+  );
+}
+```
+
+## CSS del spinner
+
+```css
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: girar 0.8s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+```
+
+## Feedback en acciones: botón con estado
+
+```jsx
+function BotonGuardar({ onGuardar }) {
+  const [guardando, setGuardando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
+
+  async function handleClick() {
+    setGuardando(true);
+    try {
+      await onGuardar();
+      setGuardado(true);
+      setTimeout(() => setGuardado(false), 2000); // reset después de 2s
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <button onClick={handleClick} disabled={guardando}>
+      {guardando ? "Guardando..." : guardado ? "✅ Guardado" : "Guardar"}
+    </button>
+  );
+}
+```
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué es importante deshabilitar el botón de submit mientras guardando=true?",
+      opciones: [
+        { texto: "Para que el botón se vea diferente" },
+        {
+          texto:
+            "Para evitar que el usuario haga clic múltiples veces y envíe la misma petición varias veces al servidor (double-submit), lo que podría crear duplicados en la BD",
+          correcta: true,
+        },
+        {
+          texto:
+            "React requiere que los botones estén deshabilitados durante fetch",
+        },
+        { texto: "Para mejorar el rendimiento" },
+      ],
+      explicacion:
+        "Si el usuario hace clic dos veces rápido en 'Guardar', sin disabled={guardando} se harían dos peticiones POST al servidor, potencialmente creando el mismo registro dos veces en MongoDB.",
+    },
+    {
+      pregunta:
+        "¿Cuáles son los cuatro estados típicos de un flujo de carga en kidotag?",
+      opciones: [
+        { texto: "start, process, end, fail" },
+        {
+          texto:
+            "idle, loading, success, error — cada estado mapea a una UI diferente: botón normal, spinner deshabilitado, confirmación verde, mensaje de error",
+          correcta: true,
+        },
+        { texto: "pending, active, done, broken" },
+        { texto: "open, running, closed, crashed" },
+      ],
+      explicacion:
+        "En kidotag, guardar una asistencia: idle (botón 'Guardar'), loading (spinner + disabled), success ('✅ Registrado'), error ('❌ Error de red'). Modelar estos estados explícitamente evita UIs inconsistentes como 'spinner + error' simultáneos.",
+    },
+    {
+      pregunta:
+        "¿Qué es una actualización optimista (optimistic update) y cuándo se usa en kidotag?",
+      opciones: [
+        {
+          texto:
+            "Actualizar la UI antes de recibir la respuesta del servidor, asumiendo que la operación tendrá éxito",
+          correcta: true,
+        },
+        { texto: "Mostrar siempre un spinner mientras se carga" },
+        { texto: "Cachear las respuestas del servidor" },
+        { texto: "Deshabilitar el botón durante la petición" },
+      ],
+      explicacion:
+        "Ejemplo: al marcar una asistencia como 'justificada', se actualiza el estado local inmediatamente y se llama a la API en segundo plano. Si falla, se revierte. Mejora la percepción de velocidad en la app de kidotag para profesores.",
+    },
+    {
+      pregunta:
+        "¿Por qué los skeleton screens son preferibles a un spinner para cargas largas en kidotag?",
+      opciones: [
+        { texto: "Los skeleton screens son más fáciles de implementar" },
+        {
+          texto:
+            "Los skeleton screens muestran la estructura del contenido, reduciendo la percepción del tiempo de espera y evitando saltos de layout cuando llegan los datos",
+          correcta: true,
+        },
+        { texto: "Los spinners gastan más CPU" },
+        { texto: "Los skeleton screens funcionan sin CSS" },
+      ],
+      explicacion:
+        "Un spinner no da información sobre qué va a aparecer. Un skeleton screen de la tabla de alumnos muestra las filas grises con la misma estructura — el usuario ya sabe lo que cargará, reduciendo la ansiedad de espera.",
+    },
+  ]}
+/>
+
+## Practica: botón con todos sus estados
+
+<CodePlayground
+  titulo="Estados UI — spinner, disabled, error, éxito"
+  codigo={`import { useState } from "react";
+
+function BotonAccion({ onClick, estado, texto }) {
+  const configs = {
+    idle: { bg: "#274c77", label: texto, icon: null, disabled: false },
+    loading: { bg: "#94a3b8", label: "Guardando…", icon: "⏳", disabled: true },
+    success: { bg: "#15803d", label: "¡Guardado!", icon: "✅", disabled: false },
+    error: { bg: "#b91c1c", label: "Error", icon: "❌", disabled: false },
+  };
+  const { bg, label, icon, disabled } = configs[estado];
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "10px 22px",
+        background: bg,
+        color: "#fff",
+        border: "none",
+        borderRadius: 8,
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontWeight: 600,
+        fontSize: 15,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        transition: "background 0.2s",
+        opacity: disabled ? 0.75 : 1,
+      }}
+    >
+      {icon && <span>{icon}</span>}
+      {label}
+    </button>
+  );
+}
+
+export default function App() {
+  const [estado, setEstado] = useState("idle");
+  const [modo, setModo] = useState("success"); // qué simulará el click
+
+  async function handleClick() {
+    if (estado === "loading") return;
+    setEstado("loading");
+    await new Promise((r) => setTimeout(r, 1500));
+    setEstado(modo);
+    if (modo === "success") {
+      setTimeout(() => setEstado("idle"), 2000);
+    }
+  }
+
+  return (
+    <div style={{ fontFamily: "sans-serif", padding: 16 }}>
+      <h2>Estados de UI</h2>
+      <p style={{ color: "#64748b", fontSize: 13, marginBottom: 16 }}>
+        En kidotag10, cada operación de guardado pasa por estos estados.
+      </p>
+
+      <div style={{ marginBottom: 16 }}>
+        <span style={{ fontSize: 13, color: "#64748b" }}>Simular: </span>
+        {["success", "error"].map((m) => (
+          <button
+            key={m}
+            onClick={() => {
+              setModo(m);
+              setEstado("idle");
+            }}
+            style={{
+              marginLeft: 8,
+              padding: "4px 12px",
+              border: "none",
+              borderRadius: 5,
+              cursor: "pointer",
+              background: modo === m ? "#274c77" : "#e2e8f0",
+              color: modo === m ? "#fff" : "#0f172a",
+            }}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+
+      <BotonAccion texto="Guardar alumno" estado={estado} onClick={handleClick} />
+
+      {estado === "error" && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 14px",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: 8,
+            color: "#b91c1c",
+            fontSize: 14,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>❌ No se pudo guardar. Verifica tu conexión.</span>
+          <button
+            onClick={() => setEstado("idle")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#b91c1c",
+              fontSize: 18,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <div
+        style={{
+          marginTop: 16,
+          padding: "10px 14px",
+          background: "#f8fafc",
+          borderRadius: 8,
+          border: "1px solid #e2e8f0",
+          fontSize: 13,
+          color: "#475569",
+        }}
+      >
+        Estado actual:{" "}
+        <code
+          style={{
+            background: "#e2e8f0",
+            padding: "1px 6px",
+            borderRadius: 4,
+            color: "#274c77",
+            fontWeight: 700,
+          }}
+        >
+          {estado}
+        </code>
+      </div>
+    </div>
+  );
+}`}
+/>

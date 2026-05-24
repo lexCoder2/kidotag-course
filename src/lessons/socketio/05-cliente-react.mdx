@@ -1,0 +1,180 @@
+# Socket.IO en React: el cliente
+
+En el frontend, socket.io-client se conecta al servidor y escucha eventos.
+En kidotag10, esto se gestiona con un custom hook.
+
+<LibCard
+  nombre="socket.io-client"
+  version="4.7.2"
+  npm="socket.io-client"
+  categoria="frontend"
+  docs="https://socket.io/docs/v4/client-api/"
+  descripcion="Cliente JavaScript de Socket.IO. Se conecta al servidor y permite emitir y escuchar eventos en tiempo real."
+  porque="Es el par del socket.io del backend. Gestiona la reconexión automática, la autenticación y el protocolo de handshake de forma transparente."
+  usoEjemplo={`// web/src/hooks/useAsistenciaRealTime.js
+import { io } from 'socket.io-client';
+import { useEffect } from 'react';
+
+export function useAsistenciaRealTime(escuelaId, onNueva) {
+  useEffect(() => {
+    const socket = io(import.meta.env.VITE_API_URL, {
+      query: { escuelaId }
+    });
+    socket.on('asistencia:nueva', onNueva);
+    return () => socket.disconnect(); // cleanup
+  }, [escuelaId]);
+}`}
+  alternativas={[
+    { nombre: "WebSocket nativo", porque_no: "Sin reconexión automática ni rooms. socket.io-client añade toda esa lógica." },
+    { nombre: "EventSource (SSE)", porque_no: "Solo servidor → cliente. No permite emitir desde el cliente." },
+  ]}
+/>
+
+## El hook useAsistenciaRealTime
+
+```javascript
+// web/src/hooks/useAsistenciaRealTime.js
+import { useEffect, useCallback } from "react";
+import { io } from "socket.io-client";
+
+export function useAsistenciaRealTime(escuelaId, onNueva) {
+  useEffect(() => {
+    if (!escuelaId) return; // no conectar sin escuelaId
+
+    const socket = io(import.meta.env.VITE_API_URL, {
+      query: { escuelaId }, // ← se pasa al servidor en el handshake
+      transports: ["websocket"], // ← forzar WebSocket (sin polling)
+    });
+
+    socket.on("connect", () => {
+      console.log("✅ Socket conectado:", socket.id);
+    });
+
+    socket.on("asistencia:nueva", (data) => {
+      onNueva(data); // ← el componente maneja el update de estado
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("Socket desconectado:", reason);
+    });
+
+    // Cleanup: desconectar al desmontar el componente
+    return () => {
+      socket.disconnect();
+    };
+  }, [escuelaId]); // re-conectar si cambia la escuela
+}
+```
+
+## Uso en el componente Dashboard
+
+```jsx
+// web/src/pages/Dashboard.jsx
+import { useState } from "react";
+import { useAsistenciaRealTime } from "../hooks/useAsistenciaRealTime";
+import { useAuth } from "../context/AuthContext";
+
+function Dashboard() {
+  const { usuario } = useAuth();
+  const [asistencias, setAsistencias] = useState([]);
+
+  // Escuchar asistencias en tiempo real
+  useAsistenciaRealTime(usuario.escuelaId, (nueva) => {
+    // Añadir al principio de la lista al llegar
+    setAsistencias((prev) => [nueva, ...prev]);
+  });
+
+  return (
+    <div>
+      <h1>Asistencias de hoy</h1>
+      {asistencias.map((a, i) => (
+        <div key={i}>
+          <strong>{a.alumno.nombre}</strong> —{" "}
+          {a.presente ? "✅ Llegó" : "🔴 Salió"}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+<Callout
+  variante="warning"
+  titulo="Siempre desconectar en el cleanup de useEffect"
+>
+  Si no llamas a `socket.disconnect()` en el return del useEffect, cada vez que
+  el componente se monte creará una nueva conexión WebSocket sin cerrar la
+  anterior. Esto provoca fugas de memoria y duplicación de eventos.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Qué pasa si el componente Dashboard se desmonta (el profesor navega a otra página) y no hay cleanup en el useEffect?",
+      opciones: [
+        { texto: "Nada — el socket se cierra automáticamente" },
+        {
+          texto:
+            "La conexión WebSocket queda abierta y los eventos siguen llegando (memory leak), además de una nueva conexión al volver",
+          correcta: true,
+        },
+        {
+          texto:
+            "Socket.IO detecta el componente desmontado y cierra la conexión",
+        },
+        { texto: "El servidor cierra la conexión después de 30 segundos" },
+      ],
+      explicacion:
+        "React no sabe que hay una conexión WebSocket — solo gestiona el árbol de componentes. El cleanup (return de useEffect) es la única manera de cerrar recursos externos al desmontar.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre socket.on() y socket.once() en el cliente?",
+      opciones: [
+        { texto: "socket.once() es más rápido" },
+        {
+          texto:
+            "socket.on() escucha el evento indefinidamente; socket.once() escucha solo la primera vez y luego se elimina automáticamente",
+          correcta: true,
+        },
+        { texto: "socket.once() solo funciona con eventos del servidor" },
+        { texto: "No hay diferencia en la práctica" },
+      ],
+      explicacion:
+        "socket.once() es útil para eventos que solo deben procesarse una vez, como la confirmación inicial de conexión. socket.on() es para eventos recurrentes como nuevas asistencias en el dashboard de kidotag10.",
+    },
+    {
+      pregunta:
+        "¿Por qué el socket se inicializa DENTRO del useEffect y no fuera del componente en React?",
+      opciones: [
+        { texto: "Es solo una cuestión de estilo" },
+        {
+          texto:
+            "Para controlar el ciclo de vida: crear la conexión al montar y destruirla al desmontar. Fuera del componente, viviría para siempre con una sola instancia",
+          correcta: true,
+        },
+        { texto: "React no permite código asincrónico fuera de useEffect" },
+        { texto: "Socket.IO requiere acceso a React hooks internamente" },
+      ],
+      explicacion:
+        "Si el socket se inicializa fuera del componente, es un singleton global que no se limpia. Dentro del useEffect, cada instancia del componente Dashboard tiene su propia conexión que se crea y destruye con el componente.",
+    },
+    {
+      pregunta:
+        "¿Cómo sabe el cliente Socket.IO de kidotag10 a qué escuela unirse al conectarse?",
+      opciones: [
+        { texto: "Socket.IO asigna rooms automáticamente" },
+        {
+          texto:
+            "El cliente emite un evento 'join-escuela' con el escuelaId del JWT después de conectarse",
+          correcta: true,
+        },
+        { texto: "El servidor envía el escuelaId al conectarse" },
+        { texto: "El room está hardcodeado en el cliente" },
+      ],
+      explicacion:
+        "El flujo: socket conecta → cliente emite socket.emit('join-escuela', { escuelaId }) → servidor recibe el evento, verifica el token y ejecuta socket.join(escuelaId). A partir de ahí, io.to(escuelaId).emit() llega a ese cliente.",
+    },
+  ]}
+/>

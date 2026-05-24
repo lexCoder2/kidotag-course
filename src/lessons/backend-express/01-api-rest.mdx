@@ -1,0 +1,275 @@
+# ¿Qué es una API REST?
+
+Una **API REST** (Representational State Transfer) es una interfaz que permite a dos sistemas comunicarse a través de HTTP. kidotag10 expone una API REST que consume su aplicación web y móvil.
+
+## HTTP: el idioma de la web
+
+```
+Petición:
+  POST /api/auth/login HTTP/1.1
+  Host: api.kidotag.mx
+  Content-Type: application/json
+
+  {"email": "profe@escuela.mx", "password": "Demo123!"}
+
+Respuesta:
+  HTTP/1.1 200 OK
+  Content-Type: application/json
+
+  {"ok": true, "token": "eyJ...", "usuario": {...}}
+```
+
+## Verbos HTTP y qué hacen
+
+| Verbo    | Acción              | Ejemplo en kidotag10      |
+| -------- | ------------------- | ------------------------- |
+| `GET`    | Leer datos          | `GET /api/alumnos`        |
+| `POST`   | Crear nuevo         | `POST /api/alumnos`       |
+| `PUT`    | Reemplazar completo | `PUT /api/alumnos/:id`    |
+| `PATCH`  | Actualizar parcial  | `PATCH /api/alumnos/:id`  |
+| `DELETE` | Eliminar            | `DELETE /api/alumnos/:id` |
+
+## Códigos de estado HTTP
+
+```
+2xx — Éxito
+  200 OK           → Lectura/actualización exitosa
+  201 Created      → Recurso creado (POST exitoso)
+  204 No Content   → Eliminación exitosa (sin cuerpo)
+
+4xx — Error del cliente
+  400 Bad Request  → Body inválido o falta un campo
+  401 Unauthorized → Sin autenticación (no hay token)
+  403 Forbidden    → Autenticado pero sin permisos
+  404 Not Found    → El recurso no existe
+  409 Conflict     → Ya existe (ej: matrícula duplicada)
+
+5xx — Error del servidor
+  500 Internal Server Error → Bug inesperado en el servidor
+```
+
+<CodePlayground
+  titulo="API REST interactiva"
+  archivos={{
+    '/App.jsx': `import { useState } from "react";
+
+// Base de datos en memoria
+let alumnos = [
+  { id: 1, nombre: "Ana García", grado: "3A" },
+  { id: 2, nombre: "Luis Pérez", grado: "2B" },
+];
+let nextId = 3;
+
+// Simulación de API REST
+function api(method, path, body = null) {
+  // GET /alumnos
+  if (method === "GET" && path === "/alumnos") {
+    return { status: 200, body: { ok: true, data: alumnos } };
+  }
+  // GET /alumnos/:id
+  if (method === "GET" && path.startsWith("/alumnos/")) {
+    const id = parseInt(path.split("/")[2]);
+    const alumno = alumnos.find((a) => a.id === id);
+    if (!alumno) return { status: 404, body: { ok: false, error: "Alumno no encontrado" } };
+    return { status: 200, body: { ok: true, data: alumno } };
+  }
+  // POST /alumnos
+  if (method === "POST" && path === "/alumnos") {
+    if (!body?.nombre) return { status: 400, body: { ok: false, error: "nombre es requerido" } };
+    const nuevo = { id: nextId++, ...body };
+    alumnos = [...alumnos, nuevo];
+    return { status: 201, body: { ok: true, data: nuevo } };
+  }
+  // DELETE /alumnos/:id
+  if (method === "DELETE" && path.startsWith("/alumnos/")) {
+    const id = parseInt(path.split("/")[2]);
+    const idx = alumnos.findIndex((a) => a.id === id);
+    if (idx === -1) return { status: 404, body: { ok: false, error: "No encontrado" } };
+    alumnos = alumnos.filter((a) => a.id !== id);
+    return { status: 200, body: { ok: true, mensaje: "Eliminado" } };
+  }
+  return { status: 404, body: { ok: false, error: "Ruta no encontrada" } };
+}
+
+const PETICIONES = [
+  { method: "GET", path: "/alumnos", body: null, label: "Listar alumnos" },
+  { method: "GET", path: "/alumnos/1", body: null, label: "Obtener alumno 1" },
+  {
+    method: "POST",
+    path: "/alumnos",
+    body: { nombre: "Sara", grado: "1A" },
+    label: "Crear alumno",
+  },
+  { method: "DELETE", path: "/alumnos/2", body: null, label: "Eliminar alumno 2" },
+  { method: "GET", path: "/alumnos/99", body: null, label: "Buscar id inválido" },
+];
+
+const statusColor = (s) => (s < 300 ? "#dcfce7" : s < 500 ? "#fef9c3" : "#fee2e2");
+
+export default function App() {
+  const [resultado, setResultado] = useState(null);
+  const [historial, setHistorial] = useState([]);
+
+  const ejecutar = (p) => {
+    const res = api(p.method, p.path, p.body);
+    setResultado({ ...p, ...res });
+    setHistorial((h) => [{ ...p, status: res.status }, ...h].slice(0, 5));
+  };
+
+  return (
+    <div style={{ fontFamily: "sans-serif", padding: "1.5rem", maxWidth: 520 }}>
+      <h2>🔌 API REST kidotag10</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {PETICIONES.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => ejecutar(p)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "white",
+              border: "1px solid #e2e8f0",
+              borderRadius: 6,
+              padding: "8px 12px",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <span
+              style={{
+                background:
+                  p.method === "GET" ? "#dbeafe" : p.method === "POST" ? "#dcfce7" : "#fee2e2",
+                padding: "2px 6px",
+                borderRadius: 4,
+                fontSize: 12,
+                fontWeight: 700,
+                minWidth: 52,
+              }}
+            >
+              {p.method}
+            </span>
+            <code style={{ fontSize: 13 }}>{p.path}</code>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b" }}>{p.label}</span>
+          </button>
+        ))}
+      </div>
+      {resultado && (
+        <div style={{ marginTop: "1rem" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+            <span
+              style={{
+                background: statusColor(resultado.status),
+                padding: "4px 10px",
+                borderRadius: 6,
+                fontWeight: 700,
+              }}
+            >
+              {resultado.status}
+            </span>
+            <code style={{ fontSize: 13 }}>
+              {resultado.method} {resultado.path}
+            </code>
+          </div>
+          <pre
+            style={{
+              background: "#0f172a",
+              color: "#86efac",
+              padding: "1rem",
+              borderRadius: 8,
+              fontSize: 12,
+              overflow: "auto",
+            }}
+          >
+            {JSON.stringify(resultado.body, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}`,
+}}
+/>
+
+<Callout variante="kidotag" titulo="Respuesta normalizada en kidotag10">
+Todas las rutas de kidotag10 responden con el mismo patrón:
+```json
+{ "ok": true,  "data": {...} }     // Éxito
+{ "ok": false, "error": "..." }    // Error
+```
+Esto hace que el frontend pueda manejar respuestas de forma uniforme.
+</Callout>
+
+<ApiPlayground />
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "El cliente envía POST /api/alumnos con body vacío {}. ¿Qué status debería responder el servidor?",
+      opciones: [
+        { texto: "500 Internal Server Error" },
+        { texto: "400 Bad Request — faltan campos requeridos", correcta: true },
+        { texto: "404 Not Found" },
+      ],
+      explicacion:
+        "400 Bad Request indica que la petición del cliente es inválida (falta el nombre, matrícula, etc.). 500 es para errores inesperados del servidor, no para validación.",
+    },
+    {
+      pregunta: "¿Cuál es la diferencia entre 401 y 403?",
+      opciones: [
+        {
+          texto:
+            "401 = no autenticado (sin token); 403 = autenticado pero sin permisos",
+          correcta: true,
+        },
+        { texto: "401 = error del servidor; 403 = recurso no encontrado" },
+        { texto: "Son sinónimos — ambos indican acceso denegado" },
+      ],
+      explicacion:
+        "401 Unauthorized significa que el usuario no está identificado (no hay token o es inválido). 403 Forbidden significa que está identificado pero no tiene permiso para esa acción.",
+    },
+    {
+      pregunta:
+        "¿Cuál de estos endpoints sigue la convención REST correcta para obtener el grupo de un alumno?",
+      opciones: [
+        { texto: "/getGrupoDeAlumno?id=123" },
+        { texto: "/api/alumnos/123/grupo", correcta: true },
+        { texto: "/api/consultarGrupoAlumno" },
+        { texto: "/api/alumno-grupo/get" },
+      ],
+      explicacion:
+        "REST usa sustantivos, no verbos, y anida recursos para expresar relaciones. /api/alumnos/:id/grupo representa el grupo del alumno con ese ID. El verbo HTTP (GET, POST, etc.) ya indica la acción.",
+    },
+    {
+      pregunta: "¿Qué significa que un método HTTP sea idempotente?",
+      opciones: [
+        { texto: "Que no requiere autenticación" },
+        {
+          texto:
+            "Que ejecutarlo una o múltiples veces produce el mismo estado en el servidor",
+          correcta: true,
+        },
+        { texto: "Que es más rápido que otros métodos" },
+        { texto: "Que solo puede ser llamado por el admin" },
+      ],
+      explicacion:
+        "GET, PUT y DELETE son idempotentes: DELETE /alumnos/123 dos veces tiene el mismo resultado que una (el alumno queda eliminado). POST NO es idempotente: crear dos veces el mismo alumno crea dos registros. Importante al manejar reintentos de red en kidotag10.",
+    },
+    {
+      pregunta:
+        "¿Qué método HTTP se debe usar para actualizar SOLO el campo 'presente' de un alumno en kidotag10?",
+      opciones: [
+        { texto: "POST — para crear o modificar" },
+        { texto: "PUT — para reemplazar el recurso completo" },
+        {
+          texto: "PATCH — para una actualización parcial de campos específicos",
+          correcta: true,
+        },
+        { texto: "GET con parámetros de query" },
+      ],
+      explicacion:
+        "PATCH es la elección correcta para actualizaciones parciales. PUT requiere enviar todos los campos del recurso (si omites uno, se sobreescribe con el valor del body). En kidotag10 se usa PATCH /alumnos/:id para actualizar campos individuales.",
+    },
+  ]}
+/>

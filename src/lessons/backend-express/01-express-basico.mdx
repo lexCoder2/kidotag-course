@@ -1,0 +1,276 @@
+# Express: primeros pasos
+
+<LibCard
+  nombre="express"
+  version="5.2.1"
+  npm="express"
+  categoria="backend"
+  docs="https://expressjs.com/"
+  descripcion="Framework web minimalista para Node.js. Gestiona rutas HTTP, middlewares y el ciclo de vida de la petición/respuesta."
+  porque="Es el framework más maduro del ecosistema Node.js. Su diseño minimalista y su ecosistema de middlewares lo hacen ideal para proyectos de todo tamaño. La versión 5 añade soporte nativo a async/await — kidotag10 usa v5.2.1."
+  usoEjemplo={`// src/app.js de kidotag10
+const express = require('express');
+const app = express();
+
+app.use(express.json()); // parsea body JSON
+app.use('/api/alumnos', alumnoRoutes);
+app.use('/api/auth', authRoutes);
+
+module.exports = app;`}
+alternativas={[
+{ nombre: "Fastify", porque_no: "Mejor rendimiento benchmarks, pero ecosistema más pequeño para Swagger y sockets." },
+{ nombre: "Koa", porque_no: "Más moderno, mismo equipo. Ecosistema más reducido." },
+{ nombre: "NestJS", porque_no: "Excelente para equipos grandes, pero introduce demasiada abstracción para este proyecto." },
+]}
+/>
+
+**Express** es el framework web más popular para Node.js. Añade una capa sencilla sobre el módulo HTTP nativo para manejar rutas, peticiones y respuestas de forma elegante.
+
+## Sin Express vs con Express
+
+```javascript
+// ❌ Node.js puro — mucho código para algo simple
+const http = require("http");
+const server = http.createServer((req, res) => {
+  if (req.url === "/alumnos" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify([{ id: 1, nombre: "Ana" }]));
+  }
+});
+server.listen(3000);
+
+// ✅ Con Express — limpio y expresivo
+const express = require("express");
+const app = express();
+
+app.get("/alumnos", (req, res) => {
+  res.json([{ id: 1, nombre: "Ana" }]);
+});
+
+app.listen(3000);
+```
+
+## Anatomía de un servidor Express
+
+<Mermaid
+  titulo="Flujo de una petición en Express"
+  diagrama={`sequenceDiagram
+  participant C as Cliente (React/Flutter)
+  participant E as Express App
+  participant M as Middlewares
+  participant R as Controlador/Ruta
+  C->>E: POST /api/auth/login
+  E->>M: express.json()
+  M->>M: cors()
+  M->>M: verificarToken?
+  M->>R: router → controller
+  R-->>C: JSON { ok, data }`}
+/>
+
+<CodePlayground
+  titulo="Servidor Express básico — estructura de kidotag10"
+  archivos={{
+    '/index.js': `const express = require("express");
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// ─── Middlewares globales ───────────────────────
+app.use(express.json()); // Parsear body JSON
+app.use(express.urlencoded({ extended: true }));
+
+// Middleware de logging (para entender el flujo)
+app.use((req, res, next) => {
+console.log(\`[\${req.method}] \${req.url}\`);
+next(); // ← SIEMPRE llamar next() para continuar
+});
+
+// ─── Rutas ──────────────────────────────────────
+app.get("/", (req, res) => {
+res.json({ mensaje: "🚀 API kidotag10 funcionando", version: "1.0" });
+});
+
+// Parámetros de ruta (:id)
+app.get("/alumnos/:id", (req, res) => {
+const { id } = req.params;
+res.json({ id, nombre: "Ana García", grado: "3A" });
+});
+
+// Query strings (?grado=3A&activo=true)
+app.get("/alumnos", (req, res) => {
+const { grado, activo } = req.query;
+res.json({
+filtros: { grado, activo },
+resultados: [],
+});
+});
+
+// Body con datos (POST)
+app.post("/alumnos", (req, res) => {
+const { nombre, matricula } = req.body;
+if (!nombre || !matricula) {
+return res.status(400).json({ ok: false, error: "Faltan datos" });
+}
+res.status(201).json({
+ok: true,
+data: { id: Date.now(), nombre, matricula },
+});
+});
+
+// ─── Error handler ──────────────────────────────
+app.use((err, req, res, next) => {
+console.error(err.stack);
+res.status(500).json({ ok: false, error: "Error interno del servidor" });
+});
+
+app.listen(PORT, () => console.log(\`Servidor en http://localhost:\${PORT}\`));`,
+}}
+plantilla="node"
+mostrarConsola
+verificaciones={[
+  {
+    id: "define-ruta-get",
+    titulo: "Define al menos una ruta GET",
+    descripcion: "Toda API REST tiene rutas GET para consultar datos.",
+    tipo: "contiene",
+    patron: "app.get(",
+    pista: "Ejemplo: app.get('/ruta', (req, res) => { res.json({...}); })",
+  },
+  {
+    id: "usa-express-json",
+    titulo: "Middleware express.json() configurado",
+    descripcion: "express.json() es necesario para parsear cuerpos JSON.",
+    tipo: "contiene",
+    patron: "express.json()",
+    pista: "Agrega: app.use(express.json()); antes de las rutas.",
+  },
+  {
+    id: "accede-req-body",
+    titulo: "Accede a req.body en algún handler",
+    descripcion: "req.body contiene los datos enviados en el cuerpo de la petición.",
+    tipo: "contiene",
+    patron: "req.body",
+    pista: "Ejemplo en un POST: const { nombre } = req.body;",
+  },
+  {
+    id: "usa-status",
+    titulo: "Usa códigos de estado HTTP (res.status)",
+    descripcion: "Las APIs REST deben devolver códigos de estado apropiados.",
+    tipo: "contiene",
+    patron: "res.status(",
+    pista: "Ejemplo: res.status(201).json({ ok: true, data })",
+  },
+  {
+    id: "escucha-puerto",
+    titulo: "Servidor inicia con app.listen()",
+    descripcion: "app.listen() arranca el servidor HTTP.",
+    tipo: "contiene",
+    patron: "app.listen(",
+    pista: "Ejemplo: app.listen(PORT, () => console.log(`Puerto ${PORT}`))",
+},
+]}
+/>
+
+## El objeto `req` y `res`
+
+```javascript
+app.post("/ruta", (req, res) => {
+  // ── req (Request) — lo que LLEGA ──
+  req.body; // Cuerpo JSON o form-data
+  req.params.id; // Segmentos de ruta: /ruta/:id
+  req.query.page; // Query strings: /ruta?page=2
+  req.headers["authorization"]; // Headers HTTP
+  req.method; // 'GET', 'POST', 'PUT', 'DELETE'
+
+  // ── res (Response) — lo que ENVÍAS ──
+  res.json({ ok: true, data }); // JSON con status 200
+  res.status(201).json({ ok: true }); // JSON con status 201
+  res.status(400).json({ ok: false, error: "Bad request" });
+  res.send("texto plano");
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+```
+
+<Callout variante="kidotag" titulo="En kidotag10/api — src/app.js">
+  El servidor de kidotag10 configura en `src/app.js`: - `express.json()` para
+  parsear bodies - `cors()` con la URL del frontend en `.env` - Todas las rutas
+  montadas con prefijo `/api` - El servidor HTTP con socket.io adjunto
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Para qué sirve llamar a next() en un middleware de Express?",
+      opciones: [
+        { texto: "Para terminar la petición y enviar la respuesta" },
+        {
+          texto:
+            "Para pasar el control al siguiente middleware o ruta en la cadena",
+          correcta: true,
+        },
+        { texto: "Para reiniciar el servidor" },
+      ],
+      explicacion:
+        'next() transfiere el control al siguiente middleware registrado. Sin llamarlo, la petición queda "colgada" y el cliente nunca recibe respuesta.',
+    },
+    {
+      pregunta:
+        "¿Cómo se accede al parámetro :alumnoId en la ruta /alumnos/:alumnoId?",
+      opciones: [
+        { texto: "req.query.alumnoId" },
+        { texto: "req.params.alumnoId", correcta: true },
+        { texto: "req.body.alumnoId" },
+      ],
+      explicacion:
+        "req.params contiene los segmentos variables de la URL definidos con :nombre. req.query es para ?clave=valor y req.body es para el cuerpo de la petición.",
+    },
+    {
+      pregunta: "¿Por qué se necesita `app.use(express.json())` en kidotag10?",
+      opciones: [
+        { texto: "Para habilitar rutas de la API" },
+        {
+          texto:
+            "Para que Express pueda parsear el body de las peticiones POST/PUT en formato JSON y exponerlo en req.body",
+          correcta: true,
+        },
+        { texto: "Para agregar headers CORS automáticamente" },
+        { texto: "Para comprimir las respuestas" },
+      ],
+      explicacion:
+        "Sin express.json(), req.body es undefined en peticiones POST. El middleware parsea el JSON del cuerpo y lo convierte en un objeto JavaScript accesible en req.body.",
+    },
+    {
+      pregunta:
+        "¿Qué diferencia hay entre app.use('/api', router) y app.get('/api/alumnos', handler)?",
+      opciones: [
+        { texto: "app.use() es más lento" },
+        {
+          texto:
+            "app.use() monta un router completo en ese prefijo (acepta GET, POST, etc.); app.get() solo responde a GET en esa ruta exacta",
+          correcta: true,
+        },
+        { texto: "app.use() solo funciona con middlewares, no con rutas" },
+        { texto: "No hay diferencia en la práctica" },
+      ],
+      explicacion:
+        "En kidotag10 se usa app.use('/api/alumnos', alumnoRouter) para montar el router de alumnos. El router maneja internamente GET /, POST /, GET /:id, etc. Esto organiza el código en archivos por recurso.",
+    },
+    {
+      pregunta:
+        "¿Por qué importa el ORDEN en que se registran los middlewares con app.use() en Express?",
+      opciones: [
+        {
+          texto: "El orden no importa — Express los ejecuta todos en paralelo",
+        },
+        {
+          texto:
+            "Express ejecuta los middlewares en el orden en que fueron registrados. Un middleware de autenticación debe ir antes de las rutas protegidas",
+          correcta: true,
+        },
+        { texto: "Solo importa para las rutas GET" },
+        { texto: "Express los ordena automáticamente por prioridad" },
+      ],
+      explicacion:
+        "Si registras app.use(auth) después de app.use('/api/alumnos', alumnoRouter), las rutas de alumnos se ejecutan SIN autenticación. El error middleware (4 parámetros) debe ir al final para capturar todos los errores anteriores.",
+    },
+  ]}
+/>

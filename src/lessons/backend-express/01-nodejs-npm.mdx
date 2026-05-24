@@ -1,0 +1,230 @@
+# Node.js y npm
+
+**Node.js** es el entorno de ejecución que permite usar JavaScript en el servidor. kidotag10 lo usa para su API REST completa.
+
+<LibCard
+  nombre="nodemon"
+  version="3.1.11"
+  npm="nodemon"
+  categoria="devtools"
+  docs="https://nodemon.io/"
+  descripcion="Herramienta de desarrollo que reinicia automáticamente el servidor Node.js cada vez que detecta cambios en los archivos del proyecto."
+  porque="Sin nodemon, modificar cualquier archivo del backend requiere matar el proceso con Ctrl+C y volver a ejecutar node src/index.js. Nodemon automatiza ese ciclo — esencial para el flujo de desarrollo."
+  usoEjemplo={`// api/package.json de kidotag10
+{
+  "scripts": {
+    "dev":   "nodemon src/index.js",  // ← reinicia automáticamente
+    "start": "node src/index.js"      // ← producción (sin nodemon)
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
+
+// Terminal
+$ npm run dev
+// [nodemon] watching: src/\*_/_
+// [nodemon] restarting due to changes...
+// Servidor iniciado en puerto 4000`}
+alternativas={[
+{ nombre: "node --watch (built-in Node 18+)", porque_no: "Nativo, sin instalar nada. Nodemon tiene más opciones de configuración (ignore, ext, delay)." },
+{ nombre: "tsx --watch", porque_no: "Para proyectos TypeScript. kidotag10 API usa JavaScript." },
+]}
+/>
+
+## Node.js y el modelo de ejecución
+
+Node.js usa un **modelo de un solo hilo con event loop**. Esto significa que:
+
+- Las operaciones de I/O (base de datos, archivos, red) son **asíncronas**
+- El servidor puede manejar miles de conexiones simultáneas sin bloquear
+- Por eso todo en kidotag10 usa `async/await` para operaciones de DB
+
+```javascript
+// ✅ Así opera kidotag10 — async/await
+async function obtenerAlumnos(req, res) {
+  const alumnos = await Alumno.find(); // no bloquea el hilo
+  res.json({ ok: true, data: alumnos });
+}
+
+// ❌ Bloquea el event loop — nunca usar en producción
+const datos = fs.readFileSync("archivo-enorme.json"); // bloquea todo
+```
+
+## El archivo `package.json`
+
+Todo proyecto Node.js tiene un `package.json`. Es el "currículum" del proyecto:
+
+```json
+// api/package.json de kidotag10
+{
+  "name": "api",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "mongoose": "^9.1.4",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "socket.io": "^4.7.2",
+    "dotenv": "^17.2.3",
+    "swagger-jsdoc": "^6.2.8",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
+```
+
+<Callout variante="info" titulo="dependencies vs devDependencies">
+  **dependencies** se instalan en producción y en desarrollo.
+  **devDependencies** solo en desarrollo. `nodemon` solo se necesita para
+  programar, no para ejecutar la app en el servidor real.
+</Callout>
+
+## Módulos CommonJS
+
+kidotag10 API usa el sistema de módulos **CommonJS** (el original de Node.js):
+
+```javascript
+// Importar (require)
+const express = require("express");
+const { Router } = require("express");
+
+// Exportar (module.exports)
+module.exports = router;
+module.exports = { conectarDB, cerrarDB };
+```
+
+<Callout variante="tip" titulo="CommonJS vs ES Modules">
+  El frontend de kidotag10 (Vite + React) usa **ES Modules**
+  (`import`/`export`). El backend usa **CommonJS** (`require`/`module.exports`).
+  Son dos sistemas distintos — en un mismo proyecto puedes tener ambos según el
+  entorno.
+</Callout>
+
+<CodePlayground
+  titulo="Módulos en Node.js"
+  descripcion="Experimenta con require y module.exports"
+  files={{
+    "/calculadora.js": `// módulo que exportamos
+function sumar(a, b) {
+  return a + b;
+}
+
+function multiplicar(a, b) {
+return a \* b;
+}
+
+module.exports = { sumar, multiplicar };
+`,
+    "/index.js": `const { sumar, multiplicar } = require("./calculadora");
+
+console.log("3 + 4 =", sumar(3, 4));
+console.log("3 × 4 =", multiplicar(3, 4));
+
+// Simula lo que hace kidotag10:
+const rutas = {
+  alumnos: "/api/alumnos",
+  auth: "/api/auth",
+  grupos: "/api/grupos",
+};
+
+Object.entries(rutas).forEach(([nombre, ruta]) => {
+  console.log(\`Ruta registrada: \${nombre} → \${ruta}\`);
+});`,
+}}
+entryFile="/index.js"
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿En qué archivo de kidotag10 está el script 'dev' que usa nodemon?",
+      opciones: [
+        { texto: "src/index.js" },
+        { texto: "package.json", correcta: true },
+        { texto: ".env" },
+        { texto: "nodemon.config.js" },
+      ],
+      explicacion:
+        "Los scripts npm se definen en el campo 'scripts' del archivo package.json. Se ejecutan con 'npm run dev'.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre 'dependencies' y 'devDependencies'?",
+      opciones: [
+        { texto: "No hay diferencia, son sinónimos" },
+        { texto: "devDependencies se instalan primero" },
+        {
+          texto:
+            "dependencies se necesitan en producción; devDependencies solo en desarrollo",
+          correcta: true,
+        },
+        {
+          texto:
+            "devDependencies son librerías de terceros y dependencies son módulos propios",
+        },
+      ],
+      explicacion:
+        "En producción (npm install --production) solo se instalan las dependencies. nodemon es devDependency porque solo lo usas mientras programas.",
+    },
+    {
+      pregunta:
+        "¿Qué característica de Node.js le permite manejar miles de conexiones simultáneas con un solo hilo?",
+      opciones: [
+        { texto: "Usa múltiples hilos del sistema operativo" },
+        {
+          texto:
+            "El event loop con I/O no bloqueante: mientras espera una respuesta de MongoDB, atiende otras peticiones",
+          correcta: true,
+        },
+        { texto: "Caché automático de todas las respuestas" },
+        { texto: "Compresión automática de peticiones" },
+      ],
+      explicacion:
+        "Node.js tiene un solo hilo JavaScript. Cuando hace una query a MongoDB, no bloquea esperando — registra un callback y sigue atendiendo otras peticiones. Cuando MongoDB responde, el event loop ejecuta el callback. Así kidotag10 puede manejar 100 conexiones Socket.IO con poco consumo de memoria.",
+    },
+    {
+      pregunta: "¿Para qué sirve el archivo package-lock.json?",
+      opciones: [
+        {
+          texto:
+            "Es generado automáticamente y puede borrarse sin consecuencias",
+        },
+        {
+          texto:
+            "Registra las versiones exactas instaladas de todas las dependencias (directas y transitivas) para reproducir el mismo entorno en cualquier máquina",
+          correcta: true,
+        },
+        { texto: "Lista los scripts de npm disponibles" },
+        { texto: "Contiene la configuración de seguridad del proyecto" },
+      ],
+      explicacion:
+        "package.json declara rangos de versión (^4.18.0 = 4.x.x). package-lock.json fija la versión exacta (4.18.2) instalada. Esto garantiza que el servidor de producción y el equipo de desarrollo usen exactamente las mismas versiones.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre ejecutar `node src/index.js` y `npm run dev`?",
+      opciones: [
+        { texto: "Son equivalentes" },
+        {
+          texto:
+            "`npm run dev` ejecuta el script 'dev' del package.json, que en kidotag10 es `nodemon src/index.js` — con recarga automática al guardar",
+          correcta: true,
+        },
+        { texto: "`npm run dev` es más rápido porque usa caché" },
+        { texto: "`node` no puede ejecutar archivos .js en producción" },
+      ],
+      explicacion:
+        "`npm run dev` no es magia — simplemente ejecuta el string definido en scripts.dev del package.json. Puedes ver exactamente qué hace abriendo package.json.",
+    },
+  ]}
+/>

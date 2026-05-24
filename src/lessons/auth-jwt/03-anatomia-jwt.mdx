@@ -1,0 +1,274 @@
+# Anatomía de un JWT
+
+<LibCard
+  nombre="jsonwebtoken"
+  version="9.0.2"
+  npm="jsonwebtoken"
+  categoria="auth"
+  docs="https://github.com/auth0/node-jsonwebtoken"
+  descripcion="Implementación de JSON Web Tokens para Node.js. Permite firmar tokens con una clave secreta y verificarlos en cada petición."
+  porque="JWT permite autenticación completamente stateless: el servidor no necesita una base de datos de sesiones. Basta con verificar la firma criptográfica del token — si es válida, el usuario está autenticado."
+  usoEjemplo={`// src/controllers/auth.controller.js de kidotag10
+const jwt = require('jsonwebtoken');
+
+// Al hacer login exitoso:
+const token = jwt.sign(
+{ id: usuario.\_id, rol: usuario.rol, escuelaId: usuario.escuela },
+process.env.JWT_SECRET,
+{ expiresIn: '7d' }
+);
+res.json({ ok: true, data: { token, usuario } });
+
+// En cada petición protegida (middleware):
+const { id, rol } = jwt.verify(token, process.env.JWT_SECRET);`}
+alternativas={[
+{ nombre: "Sesiones express-session + Redis", porque_no: "Requiere infraestructura extra (Redis). Los JWT evitan esa dependencia." },
+{ nombre: "Passport.js", porque_no: "Framework de estrategias de auth. Útil para OAuth/Google, excesivo para JWT propio." },
+{ nombre: "jose", porque_no: "Más moderno, soporta JWK. jsonwebtoken es suficiente para este proyecto." },
+]}
+/>
+
+**JWT** (JSON Web Token) es el sistema de autenticación sin estado que usa kidotag10. En lugar de guardar sesiones en el servidor, toda la información necesaria va **dentro del token**.
+
+## Estructura del token
+
+Un JWT tiene 3 partes separadas por puntos:
+
+```
+eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiI2NGFiMTIiLCJyb2wiOiJwcm9mZXNvciIsImV4cCI6MTcxNTAwMDAwMH0.xK9p2mN7
+   ──────────────────  ─────────────────────────────────────────────────────────────────────────────  ────────
+        HEADER                              PAYLOAD                                      SIGNATURE
+```
+
+- **Header**: algoritmo de firma (`HS256`)
+- **Payload**: datos del usuario (claims)
+- **Signature**: HMAC-SHA256 del header + payload con la clave secreta
+
+<Mermaid
+  titulo="Flujo de autenticación con JWT en kidotag10"
+  diagrama={`sequenceDiagram
+  participant C as Cliente (React)
+  participant A as API Express
+  participant DB as MongoDB
+  C->>A: POST /api/auth/login { email, password }
+  A->>DB: buscar usuario por email
+  DB-->>A: usuario con passwordHash
+  A->>A: bcrypt.compare(password, hash)
+  A->>A: jwt.sign({ userId, rol }, SECRET)
+  A-->>C: { ok: true, token: "eyJ..." }
+  Note over C: Guarda token en localStorage
+  C->>A: GET /api/alumnos con Bearer token
+  A->>A: jwt.verify(token, SECRET)
+  A-->>C: { ok: true, data: [...alumnos] }`}
+/>
+
+<CodePlayground
+  titulo="JWT: decodificar y explorar el payload"
+  archivos={{
+    '/App.jsx': `import { useState } from 'react'
+
+function base64url(str) {
+return btoa(unescape(encodeURIComponent(JSON.stringify(str))))
+.replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '\_')
+}
+
+function firmarToken(payload, secreto) {
+const header = { alg: 'HS256', typ: 'JWT' }
+const ahora = Math.floor(Date.now() / 1000)
+const p = { ...payload, iat: ahora, exp: ahora + 7 _ 24 _ 3600 }
+const datos = base64url(header) + '.' + base64url(p)
+const firma = btoa(secreto + datos).substring(0, 43).replace(/=/g, '')
+return datos + '.' + firma
+}
+
+function decodificarToken(token) {
+try {
+const partes = token.split('.')
+const header = JSON.parse(decodeURIComponent(escape(atob(
+partes[0].replace(/-/g, '+').replace(/_/g, '/')
+))))
+const payload = JSON.parse(decodeURIComponent(escape(atob(
+partes[1].replace(/-/g, '+').replace(/_/g, '/')
+))))
+return { header, payload }
+} catch { return null }
+}
+
+const USUARIOS = {
+'profe@escuela.mx': { id: 'abc123', rol: 'profesor', nombre: 'Profe Carlos' },
+'admin@escuela.mx': { id: 'xyz789', rol: 'admin', nombre: 'Admin Ana' },
+'tutor@gmail.com': { id: 'tut456', rol: 'tutor', nombre: 'Papá de Ana' },
+}
+
+export default function App() {
+  const [email, setEmail] = useState('profe@escuela.mx')
+  const [token, setToken] = useState('')
+  const [decoded, setDecoded] = useState(null)
+
+const generar = () => {
+const u = USUARIOS[email]
+const t = firmarToken({ userId: u.id, rol: u.rol, nombre: u.nombre }, 'secreto_kidotag')
+setToken(t)
+setDecoded(decodificarToken(t))
+}
+
+const parts = token.split('.')
+const colors = ['#dbeafe', '#dcfce7', '#fce7f3']
+const labels = ['HEADER', 'PAYLOAD', 'SIGNATURE']
+
+return (
+
+<div style={{ fontFamily: 'monospace', padding: '1.5rem', maxWidth: 550 }}>
+<h2 style={{ fontFamily: 'sans-serif' }}>🔐 JWT Explorer</h2>
+<div style={{ display: 'flex', gap: 8, marginBottom: '1rem' }}>
+<select value={email} onChange={e => { setEmail(e.target.value); setToken(''); setDecoded(null) }}
+style={{ flex: 1, padding: 8, borderRadius: 6, border: '1px solid #e2e8f0', fontFamily: 'sans-serif' }}>
+{Object.keys(USUARIOS).map(e => <option key={e}>{e}</option>)}
+</select>
+<button onClick={generar} style={{ background: '#274c77', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontFamily: 'sans-serif' }}>
+Generar JWT
+</button>
+</div>
+{token && (
+<>
+<p style={{ fontSize: 11, color: '#64748b', fontFamily: 'sans-serif', margin: '0 0 6px' }}>
+Token completo (3 partes):
+</p>
+<div style={{ wordBreak: 'break-all', fontSize: 11, lineHeight: 1.8 }}>
+{parts.map((p, i) => (
+<span key={i}>
+<span style={{ background: colors[i], padding: '2px 4px', borderRadius: 3 }} title={labels[i]}>{p}</span>
+{i < 2 && <span style={{ color: '#94a3b8' }}>.</span>}
+</span>
+))}
+</div>
+{decoded && (
+<div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: 8 }}>
+{['header', 'payload'].map((k, i) => (
+<div key={k} style={{ background: colors[i], padding: '8px', borderRadius: 6 }}>
+<strong>{labels[i]}</strong>
+<pre style={{ margin: '4px 0 0', fontSize: 12 }}>{JSON.stringify(decoded[k], null, 2)}</pre>
+</div>
+))}
+<p style={{ fontSize: 11, color: '#64748b', fontFamily: 'sans-serif', margin: 0 }}>
+⚠️ El payload es visible (Base64), ¡no almacenes passwords en el token!
+</p>
+</div>
+)}
+</>
+)}
+</div>
+)
+}
+`,
+}}
+/>
+
+## Claims en kidotag10
+
+```javascript
+// auth.controller.js — jwt.sign()
+const token = jwt.sign(
+  {
+    userId: usuario._id, // Para buscar el usuario en cada request
+    rol: usuario.rol, // 'profesor' | 'tutor' | 'admin'
+    escuelaId: usuario.escuelaId,
+    // NO incluir: password, datos sensibles
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: "7d" },
+);
+```
+
+<Callout variante="warning" titulo="JWTs son firmados, no encriptados">
+  El payload de un JWT puede ser leído por cualquiera (es solo Base64URL). La
+  **firma** garantiza que no fue modificado, pero no esconde los datos. Nunca
+  incluyas passwords, datos médicos o información sensible en el payload.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        '¿Qué ocurre si alguien modifica el payload de un JWT (por ejemplo, cambia el rol a "admin")?',
+      opciones: [
+        { texto: "La API acepta el token modificado" },
+        {
+          texto:
+            "jwt.verify() falla porque la firma no coincide con el nuevo payload",
+          correcta: true,
+        },
+        { texto: "El token simplemente expira más rápido" },
+      ],
+      explicacion:
+        "La firma se calcula con el payload original + la clave secreta. Si cambias el payload, la firma ya no corresponde y jwt.verify() lanza un error JsonWebTokenError.",
+    },
+    {
+      pregunta:
+        "¿Por qué kidotag10 almacena el rol del usuario en el JWT en lugar de buscarlo en la BD en cada request?",
+      opciones: [
+        { texto: "Porque MongoDB no puede guardar roles" },
+        {
+          texto:
+            "Para evitar un query a la BD en cada petición y hacer la API sin estado (stateless)",
+          correcta: true,
+        },
+        { texto: "Es un error de diseño — siempre deberías consultar la BD" },
+      ],
+      explicacion:
+        "La ventaja principal de JWT es la autenticación sin estado: el servidor no necesita sesiones en memoria ni consultar la BD para verificar cada petición. El token lleva toda la info necesaria.",
+    },
+    {
+      pregunta:
+        "¿Qué algoritmo usa kidotag10 para firmar los JWT y cómo funciona?",
+      opciones: [
+        {
+          texto: "RSA-256: firma con clave pública, verifica con clave privada",
+        },
+        {
+          texto:
+            "HS256: firma y verifica con la misma clave secreta (HMAC-SHA256). La misma clave que firmó debe verificar",
+          correcta: true,
+        },
+        { texto: "AES-256: encripta el token completo" },
+        { texto: "MD5: genera un hash del payload" },
+      ],
+      explicacion:
+        "HS256 es un algoritmo de firma simétrica. JWT_SECRET en kidotag10 es la clave compartida entre el proceso que genera el token (login) y el que lo verifica (middleware). Nunca debe exponerse.",
+    },
+    {
+      pregunta:
+        "¿Por qué el payload de un JWT es visible para cualquiera aunque no tengan la clave secreta?",
+      opciones: [
+        { texto: "Es un bug de seguridad de JWT" },
+        {
+          texto:
+            "Porque el payload solo está codificado en Base64URL, no encriptado. Decodificarlo es trivial con cualquier decodificador Base64",
+          correcta: true,
+        },
+        { texto: "El payload solo es visible para el servidor" },
+        { texto: "JWT usa encriptación AES que cualquiera puede invertir" },
+      ],
+      explicacion:
+        "Base64URL es codificación, no encriptación. Cualquiera puede ir a jwt.io y pegar un token para ver el payload. Por eso en kidotag10 el payload solo contiene id, rol y escuelaId — NUNCA el password ni datos sensibles.",
+    },
+    {
+      pregunta: "¿Qué es el claim 'exp' en un JWT y cómo lo usa kidotag10?",
+      opciones: [
+        {
+          texto:
+            "Export — indica si el token puede ser usado fuera del dominio",
+        },
+        {
+          texto:
+            "Expiration timestamp en Unix time. jwt.verify() rechaza automáticamente tokens donde exp ya pasó",
+          correcta: true,
+        },
+        { texto: "Experience — nivel de seguridad del token" },
+        { texto: "Extension — indica si el token es renovable" },
+      ],
+      explicacion:
+        "jwt.sign({ id }, secret, { expiresIn: '7d' }) añade automáticamente exp = ahora + 7 días. jwt.verify() lanza TokenExpiredError si el tiempo actual supera ese valor.",
+    },
+  ]}
+/>

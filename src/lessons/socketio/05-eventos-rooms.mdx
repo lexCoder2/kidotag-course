@@ -1,0 +1,174 @@
+# Eventos y rooms en Socket.IO
+
+Los dos conceptos fundamentales de Socket.IO son los **eventos** (mensajes con
+nombre) y los **rooms** (grupos de conexiones).
+
+## Eventos: emitir y escuchar
+
+```javascript
+// ── SERVIDOR ──────────────────────────────
+// Emitir a un cliente específico
+socket.emit("mensaje", { texto: "Hola" });
+
+// Emitir a todos excepto al emisor
+socket.broadcast.emit("nuevo-usuario", { nombre: "Ana" });
+
+// Emitir a todos los conectados
+io.emit("anuncio", { texto: "Reunión a las 3pm" });
+
+// Emitir a un room
+io.to("escuela:64ab1...").emit("asistencia:nueva", datos);
+
+// ── CLIENTE ───────────────────────────────
+// Escuchar evento
+socket.on("asistencia:nueva", (datos) => {
+  console.log("Nueva asistencia:", datos);
+});
+
+// Emitir al servidor
+socket.emit("marcar-salida", { alumnoId: "..." });
+```
+
+## Rooms (salas)
+
+```javascript
+// Unirse a un room
+socket.join("escuela:64ab1..."); // al conectar
+socket.join("grupo:5to-A"); // por grupo
+
+// Salir de un room
+socket.leave("grupo:5to-A");
+
+// Emitir a todos en un room
+io.to("escuela:64ab1...").emit("evento", datos);
+
+// Emitir a todos en el room excepto el emisor
+socket.to("escuela:64ab1...").emit("evento", datos);
+
+// Verificar miembros de un room
+const members = await io.in("escuela:64ab1...").fetchSockets();
+console.log(`${members.length} sockets en la sala`);
+```
+
+## Los eventos de kidotag10
+
+```javascript
+// Eventos emitidos por el servidor (escuchar en React):
+"asistencia:nueva"; // { alumno, presente, hora, grupo }
+"anuncio:nuevo"; // { titulo, contenido, autor }
+"estado:actualizado"; // { alumnoId, estado, hora }
+
+// Eventos emitidos por el cliente (escuchar en Node.js):
+// (kidotag10 usa principalmente server-to-client)
+```
+
+## Nomenclatura de eventos: namespace:accion
+
+```javascript
+// ✅ Buena nomenclatura — clara y predecible
+"asistencia:nueva";
+"asistencia:actualizada";
+"anuncio:creado";
+"usuario:conectado";
+
+// ❌ Evitar — ambiguo o inconsistente
+"data";
+"update";
+"asistenciaEvent";
+```
+
+<Mermaid titulo="Rooms en kidotag10">
+{`graph TB
+  IO[Socket.IO Server]
+  IO --> R1["Room: escuela:64ab1...\n(Escuela A)"]
+  IO --> R2["Room: escuela:64ab2...\n(Escuela B)"]
+  R1 --> P1[Profesor Ana]
+  R1 --> P2[Profesor Luis]
+  R1 --> D1[Director Escuela A]
+  R2 --> P3[Profesor María]
+  R2 --> D2[Director Escuela B]
+
+style R1 fill:#0ea5e9,color:#fff
+style R2 fill:#10b981,color:#fff`}
+
+</Mermaid>
+
+<Callout
+  variante="tip"
+  titulo="Socket.IO escala horizontalmente con Redis Adapter"
+>
+  Si kidotag10 creciera y necesitara múltiples instancias de la API (load
+  balancing), los rooms dejarían de funcionar entre instancias. La solución es
+  el `@socket.io/redis-adapter` que sincroniza los rooms entre servidores.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre io.emit() y io.to('sala').emit() en Socket.IO?",
+      opciones: [
+        { texto: "No hay diferencia práctica" },
+        {
+          texto:
+            "io.emit() envía a todos los clientes conectados; io.to('sala').emit() solo a los clientes en esa sala específica",
+          correcta: true,
+        },
+        { texto: "io.to() es más rápido que io.emit()" },
+        {
+          texto:
+            "io.emit() solo funciona en el servidor, io.to() solo en el cliente",
+        },
+      ],
+      explicacion:
+        "io.emit() es una broadcast global — todos los conectados reciben el mensaje. io.to('sala') es un broadcast filtrado — solo los sockets en ese room lo reciben. Fundamental para la privacidad multi-escuela de kidotag10.",
+    },
+    {
+      pregunta: "¿Cómo se une un socket a una room en Socket.IO del servidor?",
+      opciones: [
+        { texto: "io.createRoom(nombre)" },
+        {
+          texto:
+            "socket.join(nombreRoom) dentro del evento connection o de cualquier evento emitido por el cliente",
+          correcta: true,
+        },
+        { texto: "socket.subscribe(nombreRoom)" },
+        { texto: "Las rooms se crean automáticamente al emitir" },
+      ],
+      explicacion:
+        "socket.join(escuelaId) agrega ese socket a la room con ese nombre. Si la room no existe, Socket.IO la crea. En kidotag10: cuando el profesor se conecta y envía su escuelaId, el servidor ejecuta socket.join(escuelaId).",
+    },
+    {
+      pregunta:
+        "¿Qué hace socket.broadcast.to('sala').emit() y cómo difiere de io.to('sala').emit()?",
+      opciones: [
+        { texto: "Son idénticos" },
+        {
+          texto:
+            "socket.broadcast.to('sala').emit() envía a todos en la sala EXCEPTO al socket emisor; io.to('sala').emit() incluye al emisor",
+          correcta: true,
+        },
+        { texto: "broadcast.to() es más rápido" },
+        { texto: "broadcast.to() envía a todas las salas" },
+      ],
+      explicacion:
+        "Si un cliente (ESP32 en la app) emite un evento de lectura NFC y el servidor usa socket.broadcast.to(escuelaId).emit(), todos los profesores de esa escuela lo reciben excepto el socket origen (que en este caso es el ESP32).",
+    },
+    {
+      pregunta:
+        "¿Qué propiedad identifica unícamente a cada conexión Socket.IO?",
+      opciones: [
+        { texto: "socket.uid" },
+        {
+          texto:
+            "socket.id — un string único generado por Socket.IO para cada conexión",
+          correcta: true,
+        },
+        { texto: "socket.connectionId" },
+        { texto: "socket.address" },
+      ],
+      explicacion:
+        "socket.id es el identificador de la conexión individual (ej: 'xH7cK...'). Cambia cada vez que el cliente reconecta. En kidotag10, para mandar un mensaje a un cliente específico: io.to(socket.id).emit('mensaje', datos).",
+    },
+  ]}
+/>

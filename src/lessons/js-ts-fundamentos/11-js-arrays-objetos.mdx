@@ -1,0 +1,114 @@
+# Arrays y objetos en lenguaje humano
+
+## Array
+
+Un **array** es una lista:
+
+```javascript
+const alumnos = ["Ana", "Luis", "Mia"];
+```
+
+## Objeto
+
+Un **objeto** guarda datos con etiqueta:
+
+```javascript
+const alumno = {
+  nombre: "Ana",
+  grado: "3A",
+  presente: true,
+};
+```
+
+<CodePlayground
+  titulo="kidotag-utils — L4: Arrays y objetos"
+  plantilla="vanilla"
+  soloConsola={true}
+  entryFile="/data.js"
+  mostrarConsola={true}
+  objetivo="Definir la estructura de datos principal: el array de alumnos y el registro de asistencia del dia."
+  archivos={{
+    '/index.html': { code: `<!DOCTYPE html><html lang="es"><body><p style="font-family:sans-serif;color:#94a3b8;padding:1rem">Ver consola ↓</p><script type="module" src="./index.js"></script></body></html>`, hidden: true },
+    '/config.js': { code: `export const ESCUELA = "Primaria Benito Juarez";
+export const CICLO = "2025-2026";
+export const MAX_POR_GRUPO = 35;`, readOnly: true },
+    '/asistencia.js': { code: `export function getEstado(p) {
+  if (p >= 90) return "Excelente";
+  if (p >= 75) return "Regular";
+  return "En riesgo";
+}`, readOnly: true },
+    '/helpers.js': { code: `export function formatNombre(n) {
+  return n
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, function (c) {
+      return c.toUpperCase();
+    });
+}
+export function formatPorcentaje(v, d) {
+  return Number(v).toFixed(d === undefined ? 1 : d) + "%";
+}
+export function calcularPromedio(lista, campo) {
+  if (!lista.length) return 0;
+  return (
+    lista.reduce(function (a, i) {
+      return a + i[campo];
+    }, 0) / lista.length
+  );
+}`, readOnly: true },
+    '/data.js': `// data.js — Datos del grupo (NUEVA)
+import { ESCUELA } from "./config.js";
+
+// Array: cada elemento es un objeto alumno
+export var alumnos = [
+  { id: "a001", nombre: "Ana Garcia", grado: "3A", asistencia: 95, faltas: 1 },
+  { id: "a002", nombre: "Luis Mendez", grado: "3A", asistencia: 78, faltas: 5 },
+  { id: "a003", nombre: "Mia Torres", grado: "4B", asistencia: 100, faltas: 0 },
+  { id: "a004", nombre: "Carlos Ruiz", grado: "4B", asistencia: 62, faltas: 9 },
+];
+
+// Objeto: registro de asistencia de un dia especifico
+export var registroHoy = {
+  escuela: ESCUELA,
+  fecha: "2026-05-23",
+  grupo: "3A",
+  presentes: ["a001", "a003"],
+  ausentes: ["a002", "a004"],
+  notas: "Sin novedades",
+};`,
+    '/index.js': `import { alumnos, registroHoy } from "./data.js";
+import { formatNombre, formatPorcentaje, calcularPromedio } from "./helpers.js";
+
+console.log("=== KidoTag Utils v4 ===");
+
+console.log("--- Array de alumnos (" + alumnos.length + ") ---");
+alumnos.forEach(function (a, i) {
+  console.log(
+    "[" +
+      i +
+      "] " +
+      formatNombre(a.nombre) +
+      " (" +
+      a.grado +
+      ") — " +
+      formatPorcentaje(a.asistencia),
+  );
+});
+
+console.log("--- Registro de hoy ---");
+console.log("Fecha:", registroHoy.fecha);
+console.log("Grupo:", registroHoy.grupo);
+console.log("Presentes:", registroHoy.presentes.join(", "));
+console.log("Ausentes:", registroHoy.ausentes.join(", "));
+
+var prom = calcularPromedio(alumnos, "asistencia");
+console.log("Promedio del grupo:", formatPorcentaje(prom));`,
+}}
+pasosIncrementales={[
+"Ejecuta y lee la estructura del array alumnos y el objeto registroHoy.",
+"Agrega un quinto alumno al array en data.js con datos de tu eleccion.",
+"Cambia registroHoy.fecha a la fecha de hoy y registroHoy.notas a otro mensaje.",
+"Agrega un campo 'activo: true' a cada alumno del array.",
+]}
+retoFinal="Crea un objeto 'grupo4B' con sus propios alumnos (al menos 3). Imprime ambos grupos en index.js y compara sus promedios de asistencia con formatPorcentaje."
+/>

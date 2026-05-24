@@ -1,0 +1,300 @@
+# useEffect: efectos secundarios
+
+<LibCard
+  nombre="react-router-dom"
+  version="6.22.0"
+  npm="react-router-dom"
+  categoria="frontend"
+  docs="https://reactrouter.com/en/main"
+  descripcion="Enrutamiento del lado del cliente para React. Maneja navegación, rutas anidadas, parámetros de URL y redirecciones sin recargar la página."
+  porque="kidotag10-web tiene múltiples vistas (login, dashboard, alumnos, perfil). react-router-dom v6 permite definir esas rutas de forma declarativa y crear rutas protegidas por rol de usuario."
+  usoEjemplo={`// web/src/App.jsx de kidotag10
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+<BrowserRouter>
+  <Routes>
+    <Route path="/login" element={<Login />} />
+    <Route path="/alumnos" element={
+      <RutaProtegida><ListaAlumnos /></RutaProtegida>
+    } />
+    <Route path="/alumnos/:id" element={<DetalleAlumno />} />
+  </Routes>
+</BrowserRouter>`}
+  alternativas={[
+    { nombre: "TanStack Router", porque_no: "Más moderno con type-safety nativa. Excelente opción para TypeScript, más complejo de configurar." },
+    { nombre: "Wouter", porque_no: "Minimalista y ligero, pero sin rutas anidadas ni lazy loading nativo." },
+  ]}
+/>
+
+Los efectos secundarios son operaciones que ocurren **fuera del flujo de renderizado**: llamadas a APIs, suscripciones, timers, o actualizar el DOM manualmente. `useEffect` es el hook para manejarlos.
+
+## Cuándo se ejecuta
+
+```jsx
+useEffect(() => {
+  // 👈 Este código se ejecuta según las dependencias
+
+  return () => {
+    // Cleanup: limpia timers, cancela peticiones, desuscribe
+  };
+}, [dependencias]);
+```
+
+| Dependencias | Cuándo ejecuta       | Caso de uso                     |
+| ------------ | -------------------- | ------------------------------- |
+| Sin array    | Cada render          | Raro — casi nunca lo necesitas  |
+| `[]` vacío   | Solo al montar       | Cargar datos iniciales          |
+| `[userId]`   | Cuando userId cambia | Cargar datos del usuario activo |
+
+<CodePlayground
+  titulo="kidotag-frontend — L4: Cargar datos con useEffect"
+  plantilla="react"
+  entryFile="/api.js"
+  objetivo="Simular la carga de alumnos desde el servidor al montar el componente usando useEffect y funciones async."
+  archivos={{
+    '/styles.css': { code: `body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f8fafc;
+}
+.app {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+.app h1 {
+  color: #1e293b;
+  font-size: 1.4rem;
+  border-bottom: 2px solid #274c77;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+.badge-regular {
+  background: #fef9c3;
+  color: #854d0e;
+}
+.badge-riesgo {
+  background: #fee2e2;
+  color: #b91c1c;
+}`, readOnly: true },
+    '/TarjetaAlumno.jsx': { code: `function getBadge(a) {
+  if (a >= 90) return { clase: "badge-ok", texto: "Excelente" };
+  if (a >= 75) return { clase: "badge-regular", texto: "Regular" };
+  return { clase: "badge-riesgo", texto: "En riesgo" };
+}
+export default function TarjetaAlumno({ alumno }) {
+  const badge = getBadge(alumno.asistencia);
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "10px 14px",
+        borderRadius: 8,
+        marginBottom: 8,
+        background: alumno.presente ? "white" : "#fef9f9",
+        border: "1px solid " + (alumno.presente ? "#e2e8f0" : "#fecaca"),
+      }}
+    >
+      <div>
+        <strong>{alumno.nombre}</strong>
+        <span style={{ marginLeft: 8, color: "#64748b", fontSize: 13 }}>{alumno.grado}</span>
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <span className={"badge " + badge.clase}>{badge.texto}</span>
+        <span style={{ fontSize: 18 }}>{alumno.presente ? "✓" : "✗"}</span>
+      </div>
+    </div>
+  );
+}`, readOnly: true },
+    '/api.js': `// api.js — Simula llamadas HTTP al servidor KidoTag (NUEVA)
+function delay(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Simula GET /api/alumnos
+export async function fetchAlumnos() {
+  await delay(800);
+  return [
+    { id: 1, nombre: "Ana Garcia", grado: "3A", asistencia: 95, presente: true },
+    { id: 2, nombre: "Luis Mendez", grado: "3A", asistencia: 78, presente: false },
+    { id: 3, nombre: "Mia Torres", grado: "4B", asistencia: 62, presente: false },
+    { id: 4, nombre: "Carlos Ruiz", grado: "4B", asistencia: 100, presente: true },
+  ];
+}
+
+// Simula POST /api/asistencia
+export async function guardarAsistencia(alumnos) {
+  await delay(300);
+  return { ok: true, fecha: new Date().toLocaleDateString("es-MX") };
+}`,
+    '/App.jsx': { code: `import { useState, useEffect } from "react";
+import "./styles.css";
+import TarjetaAlumno from "./TarjetaAlumno";
+import { fetchAlumnos, guardarAsistencia } from "./api";
+
+export default function App() {
+  const [alumnos, setAlumnos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [mensaje, setMensaje] = useState("");
+
+  useEffect(() => {
+    fetchAlumnos().then((datos) => {
+      setAlumnos(datos);
+      setLoading(false);
+    });
+  }, []);
+
+  const togglePresente = (id) =>
+    setAlumnos((prev) => prev.map((a) => (a.id === id ? { ...a, presente: !a.presente } : a)));
+
+  const guardar = async () => {
+    const r = await guardarAsistencia(alumnos);
+    setMensaje("Guardado: " + r.fecha);
+    setTimeout(() => setMensaje(""), 3000);
+  };
+
+  if (loading)
+    return (
+      <div className="app">
+        <h1>KidoTag — Asistencia</h1>
+        <p style={{ color: "#64748b" }}>Cargando alumnos...</p>
+      </div>
+    );
+
+  return (
+    <div className="app">
+      <h1>KidoTag — Asistencia</h1>
+      <p style={{ color: "#64748b", fontSize: 13, margin: "0 0 1rem" }}>
+        {alumnos.filter((a) => a.presente).length} de {alumnos.length} presentes
+      </p>
+      {alumnos.map((a) => (
+        <div key={a.id} onClick={() => togglePresente(a.id)} style={{ cursor: "pointer" }}>
+          <TarjetaAlumno alumno={a} />
+        </div>
+      ))}
+      <button
+        onClick={guardar}
+        style={{
+          marginTop: "1rem",
+          padding: "8px 20px",
+          background: "#274c77",
+          color: "white",
+          border: "none",
+          borderRadius: 6,
+          cursor: "pointer",
+        }}
+      >
+        Guardar asistencia
+      </button>
+      {mensaje && <p style={{ color: "#15803d", fontWeight: 600 }}>{mensaje}</p>}
+    </div>
+  );
+}`, readOnly: true },
+}}
+pasosIncrementales={[
+"Ejecuta: observa el estado 'Cargando...' antes de que aparezcan los alumnos.",
+"En api.js, cambia el delay de fetchAlumnos a 2000ms y observa el efecto.",
+"Agrega un segundo useEffect en App.jsx que actualice document.title con el conteo de presentes.",
+"Agrega manejo de error: en App.jsx, envuelve fetchAlumnos en try/catch y muestra el error si falla.",
+]}
+retoFinal="Agrega un useEffect con setInterval que incremente un contador de segundos activos. Limpialo con clearInterval en el return del useEffect. Muestra el contador en la UI."
+/>
+
+## Error común: loop infinito
+
+```jsx
+// ❌ LOOP INFINITO
+useEffect(() => {
+  setDatos([...]) // Actualiza estado → re-render → useEffect corre de nuevo → loop
+}) // ← sin array de dependencias
+
+// ✅ CORRECTO
+useEffect(() => {
+  setDatos([...])
+}, []) // [] = solo una vez
+```
+
+<Callout variante="kidotag" titulo="Polling en kidotag10/web">
+  En `web/src/context/AuthContext.js`, useEffect con `setInterval` hace polling
+  cada 30 segundos para verificar mensajes no leídos. Siempre retorna el cleanup
+  con `clearInterval` para evitar memory leaks al desmontar el componente.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué es importante retornar una función de cleanup en useEffect con setInterval?",
+      opciones: [
+        { texto: "Para mejorar el rendimiento del render" },
+        {
+          texto:
+            "Para evitar que el intervalo continúe ejecutándose después de desmontar el componente",
+          correcta: true,
+        },
+        { texto: "Es opcional, no tiene consecuencias reales" },
+      ],
+      explicacion:
+        "Sin cleanup, el intervalo seguiría ejecutándose en segundo plano y trataría de actualizar el estado de un componente ya desmontado, causando memory leaks y errores.",
+    },
+    {
+      pregunta:
+        "useEffect(() => { fetchDatos() }, [userId]) — ¿cuándo se vuelve a ejecutar?",
+      opciones: [
+        { texto: "En cada render del componente" },
+        { texto: "Solo cuando userId cambia de valor", correcta: true },
+        { texto: "Nunca, porque userId está en el array" },
+      ],
+      explicacion:
+        "React compara las dependencias del render anterior con el actual. Si userId cambió, ejecuta el efecto de nuevo. Si no cambió, lo omite.",
+    },
+    {
+      pregunta:
+        "useEffect(() => { fetchAlumnos() }, []) — ¿cuándo se ejecuta este efecto?",
+      opciones: [
+        { texto: "Nunca — el array vacío desactiva el efecto" },
+        {
+          texto:
+            "Solo una vez después del primer render, equivalente a componentDidMount",
+          correcta: true,
+        },
+        { texto: "En cada render del componente" },
+        { texto: "Solo cuando el componente se desmonta" },
+      ],
+      explicacion:
+        "El array de dependencias vacío [] significa 'ninguna dependencia cambia' — React ejecuta el efecto solo en el montaje. En kidotag, fetchAlumnos() al montar el Dashboard carga los datos iniciales.",
+    },
+    {
+      pregunta:
+        "¿Cómo se hace correctamente una llamada async dentro de useEffect?",
+      opciones: [
+        {
+          texto:
+            "useEffect(async () => { await fetch(...) }, []) — pasando async directamente",
+        },
+        {
+          texto:
+            "Definiendo una función async dentro del efecto y llamándola: useEffect(() => { const load = async () => {...}; load(); }, [])",
+          correcta: true,
+        },
+        { texto: "Usando useAsyncEffect() de React" },
+        { texto: "Con .then() no se puede usar async en useEffect" },
+      ],
+      explicacion:
+        "React no permite pasar una función async directamente a useEffect porque retornaría una Promise (no una función de cleanup). La solución: definir la función async adentro y llamarla inmediatamente.",
+    },
+  ]}
+/>

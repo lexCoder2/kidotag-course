@@ -1,0 +1,351 @@
+# CSS Variables: el sistema de diseño
+
+kidotag10 usa variables CSS personalizadas para definir colores, espaciado y
+tipografía de manera consistente en toda la aplicación.
+
+## Definir variables en :root
+
+```css
+/* src/App.css o index.css de kidotag10 web */
+:root {
+  /* ── Colores primarios ──────────────── */
+  --color-primary: #0ea5e9; /* azul principal */
+  --color-primary-dark: #0284c7; /* hover */
+  --color-primary-light: #e0f2fe; /* fondos suaves */
+
+  /* ── Colores de estado ──────────────── */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  /* ── Texto ──────────────────────────── */
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #ffffff;
+
+  /* ── Fondo ──────────────────────────── */
+  --color-bg: #f8fafc;
+  --color-bg-card: #ffffff;
+  --color-border: #e2e8f0;
+
+  /* ── Espaciado ──────────────────────── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* ── Bordes ─────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+
+  /* ── Sombras ─────────────────────────── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+```
+
+## Usar las variables
+
+```css
+/* En cualquier archivo CSS de kidotag10 */
+.alumno-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.alumno-card.presente {
+  border-left: 4px solid var(--color-success);
+}
+
+.alumno-card.ausente {
+  border-left: 4px solid var(--color-danger);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-dark);
+}
+```
+
+## Dark mode con variables
+
+```css
+/* Las variables hacen el dark mode trivial */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text: #f1f5f9;
+    --color-bg: #0f172a;
+    --color-bg-card: #1e293b;
+    --color-border: #334155;
+  }
+  /* Los componentes no necesitan cambios — usan las variables */
+}
+```
+
+<Callout variante="tip" titulo="Variables CSS vs variables de Sass">
+  Las variables de Sass (`$color: blue`) se resuelven en build time y no existen
+  en el navegador. Las CSS variables (`--color: blue`) existen en tiempo de
+  ejecución y se pueden cambiar con JavaScript. Eso hace posible el dark mode y
+  la personalización sin recompilar.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué las CSS variables facilitan el cambio de tema (dark/light) sin tocar los componentes?",
+      opciones: [
+        { texto: "Porque los navegadores aplican los temas automáticamente" },
+        {
+          texto:
+            "Porque los componentes usan var(--color-bg) — al cambiar ese valor en :root, todos los elementos que usan esa variable se actualizan automáticamente",
+          correcta: true,
+        },
+        { texto: "Porque CSS variables se sincronizan con localStorage" },
+        { texto: "Solo funciona en Safari y Chrome" },
+      ],
+      explicacion:
+        "El sistema de diseño con variables crea una indirección: los componentes referencian variables, no valores directos. Cambiar el valor de la variable en :root (o sobreescribirla en [data-theme='dark']) actualiza toda la interfaz.",
+    },
+    {
+      pregunta:
+        "¿Cómo se define un valor por defecto (fallback) en var() de CSS?",
+      opciones: [
+        { texto: "var(--color-accent || #274c77)" },
+        {
+          texto:
+            "var(--color-accent, #274c77) — el segundo argumento es el fallback si la variable no está definida",
+          correcta: true,
+        },
+        { texto: "var(--color-accent) ?? '#274c77'" },
+        { texto: "El fallback no existe en CSS variables nativas" },
+      ],
+      explicacion:
+        "var(--color-accent, #274c77): si --color-accent no está definida en el scope actual, se usa #274c77. En kidotag, útil cuando un componente se usa fuera del :root principal o en pruebas unitarias.",
+    },
+    {
+      pregunta:
+        "¿Cómo implementa kidotag el cambio de tema oscuro/claro con CSS variables?",
+      opciones: [
+        { texto: "Cambiando el archivo CSS en tiempo de ejecución" },
+        {
+          texto:
+            "Añadiendo/quitando el atributo data-theme='dark' en el elemento html o body, y sobreescribiendo las variables dentro de ese selector",
+          correcta: true,
+        },
+        { texto: "Usando media queries prefers-color-scheme únicamente" },
+        { texto: "Con dos archivos CSS separados que se cargan dinámicamente" },
+      ],
+      explicacion:
+        "[data-theme='dark'] { --color-bg: #0f172a; --color-surface: #1e293b; ... } — al añadir este atributo con JavaScript (document.documentElement.dataset.theme = 'dark'), los nuevos valores de las variables se propagan a todos los componentes.",
+    },
+    {
+      pregunta:
+        "¿En qué selector de CSS se deben definir las variables globales de un sistema de diseño como el de kidotag?",
+      opciones: [
+        { texto: "En body {}" },
+        {
+          texto:
+            "En :root {} — es el selector de mayor jerarquía en el documento, garantizando que las variables estén disponibles en todos los elementos",
+          correcta: true,
+        },
+        { texto: "En html body {}" },
+        { texto: "En * {} para aplicar a todos los elementos" },
+      ],
+      explicacion:
+        ":root representa el elemento raíz del documento (el html). Al definir las variables ahí, son accesibles desde cualquier selector. Es la práctica estándar para tokens de diseño globales.",
+    },
+  ]}
+/>
+
+## Practica: diseña tu propio tema de color
+
+Modifica los valores de las variables para crear un tema personalizado para KidoTag.
+
+<CodePlayground
+  titulo="CSS Variables — tema interactivo"
+  codigo={`import { useState } from "react";
+
+const TEMAS = {
+  "KidoTag original": {
+    accent: "#274c77",
+    accentLight: "#3b6fa0",
+    success: "#15803d",
+    bg: "#f1f5f9",
+    surface: "#ffffff",
+    text: "#0f172a",
+  },
+  "Oscuro moderno": {
+    accent: "#6366f1",
+    accentLight: "#818cf8",
+    success: "#22c55e",
+    bg: "#0f172a",
+    surface: "#1e293b",
+    text: "#f1f5f9",
+  },
+  "Verde escolar": {
+    accent: "#166534",
+    accentLight: "#15803d",
+    success: "#84cc16",
+    bg: "#f0fdf4",
+    surface: "#ffffff",
+    text: "#14532d",
+  },
+};
+
+function Preview({ tema }) {
+  return (
+    <div
+      style={{
+        background: tema.bg,
+        color: tema.text,
+        borderRadius: 10,
+        padding: 16,
+        fontFamily: "sans-serif",
+        border: \`1px solid \${tema.accent}40\`,
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          background: tema.accent,
+          color: "#fff",
+          padding: "10px 14px",
+          borderRadius: 6,
+          marginBottom: 12,
+          fontWeight: 700,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        📚 KidoTag —{" "}
+        {tema === TEMAS["Oscuro moderno"]
+          ? "Dark"
+          : tema === TEMAS["Verde escolar"]
+            ? "Verde"
+            : "Original"}
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+        {[
+          ["234", "Alumnos"],
+          ["8", "Grupos"],
+          ["92%", "Asistencia"],
+        ].map(([val, label]) => (
+          <div
+            key={label}
+            style={{
+              flex: 1,
+              textAlign: "center",
+              background: tema.surface,
+              padding: "10px 4px",
+              borderRadius: 6,
+              border: \`1px solid \${tema.accent}30\`,
+            }}
+          >
+            <div style={{ fontSize: 20, fontWeight: 700, color: tema.accent }}>{val}</div>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Botones */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          style={{
+            padding: "8px 16px",
+            background: tema.accent,
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            flex: 1,
+            fontWeight: 600,
+          }}
+        >
+          Tomar asistencia
+        </button>
+        <button
+          style={{
+            padding: "8px 16px",
+            background: "transparent",
+            color: tema.accent,
+            border: \`2px solid \${tema.accent}\`,
+            borderRadius: 6,
+            cursor: "pointer",
+            flex: 1,
+          }}
+        >
+          Ver grupos
+        </button>
+      </div>
+
+      {/* Alerta éxito */}
+      <div
+        style={{
+          marginTop: 12,
+          padding: "8px 12px",
+          background: \`\${tema.success}20\`,
+          color: tema.success,
+          borderRadius: 6,
+          fontSize: 13,
+          border: \`1px solid \${tema.success}40\`,
+        }}
+      >
+        ✅ Ana García marcada como presente
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [nombre, setNombre] = useState("KidoTag original");
+  const tema = TEMAS[nombre];
+
+  return (
+    <div style={{ fontFamily: "sans-serif", padding: 16 }}>
+      <h2 style={{ marginBottom: 12 }}>CSS Variables — Temas</h2>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {Object.keys(TEMAS).map((t) => (
+          <button
+            key={t}
+            onClick={() => setNombre(t)}
+            style={{
+              padding: "6px 14px",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: 600,
+              background: nombre === t ? "#274c77" : "#e2e8f0",
+              color: nombre === t ? "#fff" : "#0f172a",
+            }}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <Preview tema={tema} />
+
+      <p style={{ marginTop: 14, fontSize: 12, color: "#64748b" }}>
+        Solo cambiando 6 variables CSS se transforma toda la interfaz. En kidotag10, estas variables
+        están en <code>src/index.css :root</code>.
+      </p>
+    </div>
+  );
+}`}
+/>

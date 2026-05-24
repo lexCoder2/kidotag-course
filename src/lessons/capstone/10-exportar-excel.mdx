@@ -1,0 +1,212 @@
+# Proyecto capstone: exportar Excel con xlsx
+
+kidotag10 permite exportar reportes de asistencia en formato Excel (.xlsx)
+usando la librería `xlsx` (SheetJS).
+
+<LibCard
+  nombre="xlsx"
+  version="0.18.5"
+  npm="xlsx"
+  categoria="backend"
+  docs="https://docs.sheetjs.com/"
+  descripcion="Librería para crear, leer y escribir archivos Excel (.xlsx), CSV, ODS y otros formatos. Funciona tanto en Node.js como en el navegador."
+  porque="Los directores y profesores de escuelas están acostumbrados a trabajar con Excel para reportes de asistencia. xlsx permite generar archivos .xlsx directamente desde los datos de MongoDB sin herramientas externas."
+  usoEjemplo={`const xlsx = require('xlsx');
+
+// Crear workbook
+const wb = xlsx.utils.book_new();
+
+// Crear hoja desde array de objetos
+const datos = [
+{ Alumno: 'Ana García', Fecha: '15/01/2025', Estado: 'Presente' },
+{ Alumno: 'Luis López', Fecha: '15/01/2025', Estado: 'Ausente' },
+];
+const ws = xlsx.utils.json_to_sheet(datos);
+xlsx.utils.book_append_sheet(wb, ws, 'Asistencias');
+
+// Convertir a buffer y enviar
+const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+res.send(buffer);`}
+alternativas={[
+{ nombre: "exceljs", porque_no: "Más funcional (estilos, formulas) pero más pesado. xlsx es suficiente para reportes simples de kidotag10." },
+{ nombre: "csv-writer", porque_no: "CSV no requiere librería — pero Excel es el formato esperado por las escuelas." },
+]}
+/>
+
+## El controlador de reporte completo
+
+```javascript
+// src/controllers/asistencia.controller.js
+const xlsx = require("xlsx");
+
+async function descargarReporte(req, res) {
+  const { grupoId, fechaInicio, fechaFin } = req.query;
+
+  // 1. Obtener datos de MongoDB
+  const asistencias = await Asistencia.find({
+    escuela: req.usuario.escuelaId,
+    ...(grupoId && { grupo: grupoId }),
+    fecha: {
+      $gte: new Date(fechaInicio),
+      $lte: new Date(fechaFin + "T23:59:59"),
+    },
+  })
+    .populate("alumno", "nombre grado")
+    .sort({ fecha: 1 })
+    .lean();
+
+  // 2. Transformar a filas planas para Excel
+  const filas = asistencias.map((a) => ({
+    Alumno: a.alumno.nombre,
+    Grado: a.alumno.grado,
+    Fecha: a.fecha.toLocaleDateString("es-MX"),
+    Hora: a.fecha.toLocaleTimeString("es-MX", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    Estado: a.presente ? "Presente" : "Ausente",
+  }));
+
+  // 3. Crear el Excel
+  const wb = xlsx.utils.book_new();
+  const ws = xlsx.utils.json_to_sheet(filas);
+
+  // Ancho de columnas
+  ws["!cols"] = [
+    { wch: 30 }, // Alumno
+    { wch: 10 }, // Grado
+    { wch: 15 }, // Fecha
+    { wch: 10 }, // Hora
+    { wch: 12 }, // Estado
+  ];
+
+  xlsx.utils.book_append_sheet(wb, ws, "Asistencias");
+
+  // 4. Enviar como descarga
+  const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+  const nombre = `asistencias-${fechaInicio}-${fechaFin}.xlsx`;
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  res.setHeader("Content-Disposition", `attachment; filename="${nombre}"`);
+  res.send(buffer);
+}
+```
+
+## El frontend: botón de descarga
+
+```jsx
+function BotonDescargarReporte({ grupoId, fechaInicio, fechaFin }) {
+  const { token } = useAuth();
+  const [descargando, setDescargando] = useState(false);
+
+  async function descargar() {
+    setDescargando(true);
+    try {
+      const params = new URLSearchParams({ grupoId, fechaInicio, fechaFin });
+      const res = await fetch(`${API_URL}/asistencias/reporte?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Error al generar el reporte");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reporte-${fechaInicio}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDescargando(false);
+    }
+  }
+
+  return (
+    <button onClick={descargar} disabled={descargando}>
+      {descargando ? "Generando..." : "⬇ Descargar Excel"}
+    </button>
+  );
+}
+```
+
+<Callout variante="tip" titulo="¡Felicidades! Has completado el curso">
+  Has aprendido todas las tecnologías de kidotag10: Node.js, Express, MongoDB,
+  Mongoose, JWT, bcrypt, Socket.IO, Swagger, React, Vite, Context API, React
+  Router, CSS Variables y Excel con xlsx. Ahora puedes leer y entender todo el
+  código del proyecto.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué se usa .lean() en la consulta de Mongoose antes de transformar los datos para Excel?",
+      opciones: [
+        { texto: "Para que la consulta sea más rápida visualmente" },
+        {
+          texto:
+            ".lean() devuelve objetos JavaScript planos en lugar de documentos Mongoose completos — más eficiente en memoria y más rápido para procesar en cantidad (ej: 500 asistencias)",
+          correcta: true,
+        },
+        {
+          texto:
+            "xlsx solo puede procesar objetos planos, no documentos Mongoose",
+        },
+        { texto: "Para evitar el populate de relaciones" },
+      ],
+      explicacion:
+        "Los documentos Mongoose incluyen getters, setters, métodos de instancia y toda la lógica del Schema — por cada documento. Para transformar 500 filas en un reporte Excel, solo se necesitan los datos. .lean() devuelve un objeto {} limpio, mucho más eficiente.",
+    },
+    {
+      pregunta:
+        "¿Cuál es el flujo correcto para generar un archivo Excel con la librería xlsx en kidotag?",
+      opciones: [
+        { texto: "xlsx.createFile() con el array de datos directamente" },
+        {
+          texto:
+            "XLSX.utils.json_to_sheet(datos) para crear el worksheet, XLSX.utils.book_new() para el workbook, XLSX.utils.book_append_sheet() para añadirlo, y XLSX.write() para obtener el buffer",
+          correcta: true,
+        },
+        { texto: "XLSX.writeFile(datos, 'reporte.xlsx')" },
+        { texto: "Crear un workbook directamente con los datos" },
+      ],
+      explicacion:
+        "El flujo en kidotag: 1) ws = XLSX.utils.json_to_sheet(filas) — convierte array de objetos a celdas; 2) wb = XLSX.utils.book_new(); 3) XLSX.utils.book_append_sheet(wb, ws, 'Asistencias'); 4) const buf = XLSX.write(wb, { type: 'buffer' }); 5) res.send(buf).",
+    },
+    {
+      pregunta:
+        "¿Por qué la exportación de Excel en kidotag se hace en el servidor (Express) y no en el cliente (React)?",
+      opciones: [
+        { texto: "El navegador no puede generar archivos xlsx" },
+        {
+          texto:
+            "El servidor tiene acceso directo a MongoDB, puede manejar 500+ registros sin impactar el navegador del usuario, y evita enviar datos sensibles al cliente",
+          correcta: true,
+        },
+        { texto: "xlsx no funciona en el navegador" },
+        { texto: "Solo por convención del equipo" },
+      ],
+      explicacion:
+        "Si se hiciera en el cliente: se enviarían todos los datos JSON al React, éste los procesaría en el hilo principal (bloqueando la UI) y generaría el archivo. En el servidor: React solo recibe el archivo listo. Más eficiente y más seguro.",
+    },
+    {
+      pregunta:
+        "¿Qué header HTTP debe enviar el servidor para que el navegador identifique la respuesta como un archivo xlsx descargable?",
+      opciones: [
+        { texto: "Content-Type: application/json" },
+        {
+          texto:
+            "Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet con Content-Disposition: attachment; filename=reporte.xlsx",
+          correcta: true,
+        },
+        { texto: "Content-Type: application/excel" },
+        { texto: "X-File-Type: xlsx" },
+      ],
+      explicacion:
+        "Content-Type identifica el tipo MIME del archivo. Content-Disposition: attachment le dice al navegador que debe descargar el archivo (no mostrarlo). Sin estos headers, el navegador no sabría cómo manejar la respuesta binaria.",
+    },
+  ]}
+/>

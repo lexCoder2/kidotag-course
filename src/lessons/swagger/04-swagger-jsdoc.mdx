@@ -1,0 +1,197 @@
+# swagger-jsdoc: docs como código
+
+Veamos cómo kidotag10 documenta sus rutas con comentarios JSDoc.
+
+## La sintaxis de anotación
+
+```javascript
+// src/routes/auth.routes.js de kidotag10
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Login unificado para todos los roles
+ *     description: |
+ *       Recibe email, password y rol. Busca en la colección
+ *       correspondiente, verifica el password con bcrypt y
+ *       devuelve un JWT con expiración de 7 días.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginInput'
+ *     responses:
+ *       200:
+ *         description: Login exitoso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       400:
+ *         description: Campos requeridos faltantes o rol inválido
+ *       401:
+ *         description: Credenciales incorrectas
+ */
+router.post("/login", loginUnificado);
+```
+
+## Definir schemas reutilizables
+
+```javascript
+// También en JSDoc, generalmente en un archivo separado o al inicio de routes/
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     LoginInput:
+ *       type: object
+ *       required: [email, password, rol]
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: "profesor@escuela.mx"
+ *         password:
+ *           type: string
+ *           minLength: 6
+ *           example: "MiPassword123"
+ *         rol:
+ *           type: string
+ *           enum: [tutor, profesor, admin]
+ *
+ *     LoginResponse:
+ *       type: object
+ *       properties:
+ *         ok:
+ *           type: boolean
+ *           example: true
+ *         data:
+ *           type: object
+ *           properties:
+ *             token:
+ *               type: string
+ *             usuario:
+ *               $ref: '#/components/schemas/UsuarioBasico'
+ */
+```
+
+## La configuración en kidotag10
+
+```javascript
+// src/config/swagger.js
+const swaggerJsdoc = require("swagger-jsdoc");
+
+const options = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "Kidotag API",
+      version: "1.0.0",
+      description: "API REST para control de asistencia escolar con NFC",
+    },
+    servers: [{ url: `http://localhost:${process.env.PORT || 4000}` }],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
+    security: [{ bearerAuth: [] }], // ← seguridad global por defecto
+  },
+  apis: ["./src/routes/*.js"], // ← archivos a escanear
+};
+
+module.exports = swaggerJsdoc(options);
+```
+
+```javascript
+// src/app.js — montar la UI
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./config/swagger");
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// → http://localhost:4000/api-docs
+```
+
+<Callout variante="tip" titulo="El spec JSON también está disponible">
+  `GET /api-docs/swagger.json` devuelve el spec completo en JSON. Herramientas
+  como Postman pueden importarlo directamente para generar una colección de
+  testing automáticamente.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Qué hace la propiedad 'apis' en la configuración de swagger-jsdoc?",
+      opciones: [
+        { texto: "Define los endpoints de la API" },
+        {
+          texto:
+            "Le dice a swagger-jsdoc en qué archivos buscar los comentarios @swagger para generar el spec",
+          correcta: true,
+        },
+        { texto: "Lista las dependencias de la API" },
+        { texto: "Configura los servidores donde se desplegará la API" },
+      ],
+      explicacion:
+        "swagger-jsdoc escanea los archivos que matches con el patrón en 'apis' (en kidotag10, './src/routes/*.js') buscando comentarios con @swagger para construir el spec automáticamente.",
+    },
+    {
+      pregunta:
+        "¿Qué etiqueta JSDoc inicia una definición de documentación OpenAPI en swagger-jsdoc?",
+      opciones: [
+        {
+          texto: "@openapi o @swagger al inicio del bloque de comentario",
+          correcta: true,
+        },
+        { texto: "@route" },
+        { texto: "@api" },
+        { texto: "@endpoint" },
+      ],
+      explicacion:
+        "El bloque de comentario JSDoc debe empezar con @swagger o @openapi: `/** @swagger` seguido del YAML de la ruta. swagger-jsdoc busca exactamente esa etiqueta para parsear el contenido.",
+    },
+    {
+      pregunta:
+        "¿Dónde se genera el spec final de swagger-jsdoc y cómo lo usa swagger-ui-express?",
+      opciones: [
+        {
+          texto: "Se guarda en un archivo swagger.json que se sube al servidor",
+        },
+        {
+          texto:
+            "Se genera en memoria como un objeto JavaScript. swagger-ui-express lo sirve dinámicamente en la ruta /api/docs",
+          correcta: true,
+        },
+        { texto: "Se genera al iniciar Express y se cachéa en Redis" },
+        { texto: "El developer copia y pega el YAML en swagger.io" },
+      ],
+      explicacion:
+        "En kidotag10: const spec = swaggerJsdoc(options); app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(spec)). El spec se genera en memoria al arrancar el servidor y se sirve dinámicamente.",
+    },
+    {
+      pregunta:
+        "¿Por qué es importante mantener la documentación Swagger sincronizada con el código real de la API?",
+      opciones: [
+        { texto: "Por cumplimiento legal" },
+        {
+          texto:
+            "Porque la documentación desactualizada lleva a errores de integración: el frontend hace peticiones con el schema incorrecto y los tests fallan",
+          correcta: true,
+        },
+        { texto: "Swagger UI falla si la documentación está desactualizada" },
+        { texto: "OpenAPI valida el código automáticamente" },
+      ],
+      explicacion:
+        "Si renombras un campo en el modelo Alumno pero no actualizas el JSDoc, el frontend desacopla su schema del real. En kidotag10, cambiar matricula a matriculaAlumno sin actualizar Swagger causaría que los integradores enviarían el campo incorrecto.",
+    },
+  ]}
+/>

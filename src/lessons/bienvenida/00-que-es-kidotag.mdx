@@ -1,0 +1,158 @@
+# ¿Qué es KidoTag?
+
+**KidoTag** es una aplicación web completa para la gestión escolar. Permite a escuelas registrar alumnos, controlar asistencias mediante lectores NFC/RFID, y comunicar información a tutores en tiempo real.
+
+<Callout variante="kidotag" titulo="El proyecto que aprenderemos">
+  Todo este curso está basado en el código real de **kidotag10**, un sistema que
+  incluye: una API REST, una base de datos MongoDB, autenticación segura y una
+  interfaz web en React. Al terminar el curso, entenderás **cada línea** de ese
+  proyecto.
+</Callout>
+
+## Arquitectura general
+
+El sistema tiene tres grandes partes:
+
+<Mermaid
+  titulo="Componentes principales de KidoTag"
+  diagrama={`
+graph TD
+  A[🌐 App Web React] -->|HTTP / WebSocket| B[🖥️ API Express]
+  C[📟 ESP32 NFC] -->|HTTP| B
+  B -->|Mongoose ODM| D[(🗄️ MongoDB)]
+  B -->|JWT| A
+  B -->|Socket.IO| A
+`}
+/>
+
+| Capa          | Tecnología         | Propósito                   |
+| ------------- | ------------------ | --------------------------- |
+| Frontend      | React + Vite       | Interfaz de usuario         |
+| Backend       | Express + Node.js  | API REST                    |
+| Base de datos | MongoDB + Mongoose | Almacenamiento              |
+| Hardware      | ESP32 + PN532      | Lector NFC                  |
+| Tiempo real   | Socket.IO          | Notificaciones instantáneas |
+
+## ¿Qué aprenderás?
+
+Este curso está dividido en **11 módulos** con más de 50 lecciones interactivas:
+
+1. **Backend con Express** — Crear rutas, middlewares y controladores
+2. **MongoDB con Mongoose** — Modelos, esquemas y consultas
+3. **Autenticación JWT** — Seguridad y sesiones
+4. **Documentación con Swagger** — APIs profesionales
+5. **Tiempo real con Socket.IO** — WebSockets desde cero
+6. **React fundamentos** — Componentes, props y estado
+7. **React avanzado** — Hooks, contexto y patrones
+8. **Integración web-API** — Conectar frontend y backend
+9. **Estilos y UX** — CSS variables y diseño responsivo
+10. **Proyecto final** — Reproducir KidoTag completo
+
+<Callout variante="tip" titulo="¿Cómo aprovechar el curso?">
+  Cada lección tiene **ejemplos interactivos** que puedes modificar en el
+  navegador, **diagramas** para visualizar conceptos, y un **quiz** al final.
+  Marca cada lección como completada para seguir tu progreso.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Cuántas capas principales tiene la arquitectura de KidoTag?",
+      opciones: [
+        { texto: "2 capas (frontend y backend)" },
+        {
+          texto: "3 capas (frontend, backend y base de datos)",
+          correcta: true,
+        },
+        { texto: "5 capas independientes" },
+      ],
+      explicacion:
+        "KidoTag tiene frontend (React), backend (Express) y base de datos (MongoDB). El ESP32 es hardware externo que se comunica con el backend.",
+    },
+    {
+      pregunta:
+        "¿Qué tecnología usa KidoTag para las notificaciones en tiempo real?",
+      opciones: [
+        { texto: "Polling cada segundo" },
+        { texto: "Server-Sent Events (SSE)" },
+        { texto: "Socket.IO (WebSockets)", correcta: true },
+      ],
+      explicacion:
+        "Socket.IO es una biblioteca que facilita la comunicación bidireccional en tiempo real usando WebSockets con fallbacks automáticos.",
+    },
+    {
+      pregunta: "¿Qué función cumple el ESP32 en el sistema KidoTag?",
+      opciones: [
+        { texto: "Almacena las asistencias en su propia base de datos" },
+        {
+          texto:
+            "Lee las tarjetas NFC de los alumnos y envía el UID al servidor Express por HTTP",
+          correcta: true,
+        },
+        { texto: "Sirve la interfaz web a los profesores" },
+        { texto: "Genera los tokens JWT de autenticación" },
+      ],
+      explicacion:
+        "El ESP32 es el hardware lector NFC. Solo lee el UID de la tarjeta y lo envía a la API. El servidor Express es quien valida, busca al alumno, guarda la asistencia y notifica en tiempo real.",
+    },
+    {
+      pregunta: "¿Cuáles son los roles de usuario que maneja KidoTag?",
+      opciones: [
+        { texto: "Solo admin y usuario" },
+        { texto: "Admin, profesor y tutor (padre de familia)", correcta: true },
+        { texto: "Super-admin, admin, profesor, alumno y tutor" },
+        { texto: "Solo hay un rol genérico" },
+      ],
+      explicacion:
+        "Cada rol tiene permisos diferentes: el admin gestiona la escuela y usuarios; el profesor controla asistencia y grupos; el tutor solo puede ver la asistencia de sus hijos. El control de acceso por roles (RBAC) está implementado con JWT y middlewares.",
+    },
+    {
+      pregunta: "¿Qué es NFC y cómo lo usan los alumnos en KidoTag?",
+      opciones: [
+        { texto: "Una red WiFi especial del colegio" },
+        {
+          texto:
+            "Near Field Communication: comunicación inalámbrica de corto alcance. Los alumnos acercan su tarjeta o pulsera al lector ESP32 para registrar su asistencia",
+          correcta: true,
+        },
+        { texto: "Una app que los alumnos instalan en su teléfono" },
+        { texto: "Un sistema de códigos QR" },
+      ],
+      explicacion:
+        "NFC es la misma tecnología que usan las tarjetas de metro y pagos contactless. En KidoTag, cada alumno tiene una tarjeta o pulsera con un UID único que el ESP32 lee instantáneamente.",
+    },
+  ]}
+/>
+
+## Flujo completo: registro de asistencia
+
+Para entender por qué existen todas estas capas, observa cómo fluye un evento de
+asistencia desde el hardware hasta el tutor:
+
+<Mermaid
+  titulo="Flujo: el alumno pasa su tarjeta NFC"
+  diagrama={`
+sequenceDiagram
+  participant ESP as 📟 ESP32 (NFC)
+  participant API as 🖥️ API Express
+  participant DB  as 🗄️ MongoDB
+  participant WS  as ⚡ Socket.IO
+  participant APP as 🌐 App React
+
+ESP->>API: POST /asistencias { uid_nfc: "A1B2C3" }
+API->>DB: Buscar alumno con uid_nfc = "A1B2C3"
+DB-->>API: { nombre: "Ana García", grupo: "3°A" }
+API->>DB: Guardar { alumno, hora, tipo: "entrada" }
+DB-->>API: Asistencia guardada ✅
+API->>WS: emit("asistencia", { alumno, hora })
+WS->>APP: Notificación en tiempo real
+APP->>APP: Actualizar tabla de asistencias
+`}
+/>
+
+<Callout variante="tip" titulo="¿Por qué necesitamos todas estas piezas?">
+  Cada capa tiene una responsabilidad específica: el **ESP32** solo lee
+  tarjetas, la **API Express** aplica las reglas del negocio, **MongoDB** guarda
+  el historial, y **Socket.IO** evita que el maestro tenga que recargar la
+  página. Este patrón de separación se llama *arquitectura en capas*.
+</Callout>

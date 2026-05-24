@@ -1,0 +1,108 @@
+# TypeScript basico: tipos, interfaces y errores utiles
+
+TypeScript es JavaScript con "cinturon de seguridad".
+Te avisa errores antes de ejecutar.
+
+## Tipos basicos
+
+```ts
+let nombre: string = "Ana";
+let edad: number = 10;
+let activo: boolean = true;
+```
+
+## Interface
+
+```ts
+interface Alumno {
+  id: string;
+  nombre: string;
+  presente: boolean;
+}
+```
+
+<Callout variante="tip" titulo="Que ganas con TypeScript">
+  Menos errores tontos, autocompletado mejor y codigo mas facil de mantener.
+</Callout>
+
+<CodePlayground
+  titulo="kidotag-utils — L7: Interfaces y tipos en TypeScript"
+  plantilla="vanilla-ts"
+  soloConsola={true}
+  entryFile="/types.ts"
+  mostrarConsola={true}
+  objetivo="Portar el modulo de datos de KidoTag a TypeScript usando interfaces, tipos union y campos opcionales."
+  archivos={{
+    '/index.html': { code: `<!DOCTYPE html><html lang="es"><body><p style="font-family:sans-serif;color:#94a3b8;padding:1rem">Ver consola ↓</p><script type="module" src="./index.ts"></script></body></html>`, hidden: true },
+    '/types.ts': `// types.ts — Definicion de tipos del sistema KidoTag (NUEVA)
+
+// Interface: define la forma exacta de un objeto Alumno
+export interface Alumno {
+  id: string;
+  nombre: string;
+  grado: string;
+  asistencia: number;
+  faltas: number;
+}
+
+// Interface con campo opcional (notas puede faltar)
+export interface Registro {
+  fecha: string;
+  grupo: string;
+  presentes: string[];
+  ausentes: string[];
+  notas?: string;
+}
+
+// Tipo union: solo puede ser uno de estos 3 valores exactos
+export type EstadoAsistencia = "Excelente" | "Regular" | "En riesgo";`,
+    '/data.ts': `// data.ts — Datos tipados del grupo (NUEVA)
+import type { Alumno, Registro } from "./types";
+
+export const alumnos: Alumno[] = [
+  { id: "a001", nombre: "Ana Garcia", grado: "3A", asistencia: 95, faltas: 1 },
+  { id: "a002", nombre: "Luis Mendez", grado: "3A", asistencia: 78, faltas: 5 },
+  { id: "a003", nombre: "Mia Torres", grado: "4B", asistencia: 100, faltas: 0 },
+  { id: "a004", nombre: "Carlos Ruiz", grado: "4B", asistencia: 62, faltas: 9 },
+];
+
+export const registroHoy: Registro = {
+  fecha: "2026-05-23",
+  grupo: "3A",
+  presentes: ["a001", "a003"],
+  ausentes: ["a002", "a004"],
+};`,
+    '/index.ts': `import type { Alumno, EstadoAsistencia } from "./types";
+import { alumnos, registroHoy } from "./data";
+
+function getEstado(porcentaje: number): EstadoAsistencia {
+  if (porcentaje >= 90) return "Excelente";
+  if (porcentaje >= 75) return "Regular";
+  return "En riesgo";
+}
+
+function resumen(lista: Alumno[]) {
+  return {
+    total: lista.length,
+    enRiesgo: lista.filter((a) => a.asistencia < 75).length,
+    totalFaltas: lista.reduce((acc, a) => acc + a.faltas, 0),
+  };
+}
+
+console.log("=== KidoTag Utils v7 (TypeScript) ===");
+
+alumnos.forEach((a) => {
+  console.log(a.nombre + " (" + a.grado + "): " + a.asistencia + "% — " + getEstado(a.asistencia));
+});
+
+console.log("Resumen:", resumen(alumnos));
+console.log("Registro:", registroHoy.fecha, "— grupo", registroHoy.grupo);`,
+}}
+pasosIncrementales={[
+"Ejecuta y verifica que el output es identico al de la version JS, pero con tipos en el editor.",
+"Agrega el campo 'email?: string' como opcional a la interfaz Alumno en types.ts.",
+"En data.ts, agrega email solo a uno de los alumnos — TypeScript acepta ambos casos.",
+"Intenta asignar un valor invalido al tipo EstadoAsistencia y observa el error del editor.",
+]}
+retoFinal="Crea un tipo union Grado con los valores '1A' | '2A' | '3A' | '4B'. Reemplaza el campo grado: string por grado: Grado en la interfaz Alumno. Confirma que TypeScript rechaza un valor de grado invalido."
+/>

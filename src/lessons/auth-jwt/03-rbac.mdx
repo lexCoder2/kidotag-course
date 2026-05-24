@@ -1,0 +1,228 @@
+# Control de acceso por roles (RBAC)
+
+Verificar que el token es válido es solo el primer paso. También necesitamos
+verificar que el usuario tiene el **rol correcto** para cada operación.
+
+## ¿Qué es RBAC?
+
+**Role-Based Access Control** (Control de Acceso Basado en Roles) es un patrón
+de autorización donde los permisos se asignan a roles, no a usuarios individuales.
+
+kidotag10 tiene tres roles:
+
+- **tutor** — ve y gestiona sus propios alumnos
+- **profesor** — registra asistencia, ve alumnos de su grupo
+- **admin** — acceso total a la escuela
+
+## Los middlewares de rol en kidotag10
+
+```javascript
+// src/middlewares/auth.middleware.js
+function esTutor(req, res, next) {
+  if (req.usuario?.rol !== "tutor") {
+    return res.status(403).json({ ok: false, error: "ACCESO_DENEGADO" });
+  }
+  next();
+}
+
+function esProfesor(req, res, next) {
+  if (req.usuario?.rol !== "profesor") {
+    return res.status(403).json({ ok: false, error: "ACCESO_DENEGADO" });
+  }
+  next();
+}
+
+function esAdmin(req, res, next) {
+  if (req.usuario?.rol !== "admin") {
+    return res.status(403).json({ ok: false, error: "ACCESO_DENEGADO" });
+  }
+  next();
+}
+
+module.exports = { verificarToken, esTutor, esProfesor, esAdmin };
+```
+
+## Aplicar RBAC en las rutas
+
+```javascript
+// src/routes/alumno.routes.js
+const {
+  verificarToken,
+  esProfesor,
+  esTutor,
+  esAdmin,
+} = require("../middlewares/auth.middleware");
+
+// Solo profesores pueden listar todos los alumnos
+router.get("/", verificarToken, esProfesor, listarAlumnos);
+
+// Solo tutores pueden actualizar datos de contacto
+router.put("/:id/contacto", verificarToken, esTutor, actualizarContacto);
+
+// Solo admins pueden eliminar
+router.delete("/:id", verificarToken, esAdmin, eliminarAlumno);
+```
+
+<Callout
+  variante="info"
+  titulo="El orden importa: verificarToken SIEMPRE antes que el rol"
+>
+  `verificarToken` adjunta `req.usuario`. Si el middleware de rol se ejecuta
+  primero, `req.usuario` sería undefined y el acceso sería denegado aunque el
+  token sea válido. El orden es siempre: autenticación → autorización.
+</Callout>
+
+## 401 vs 403: la diferencia
+
+| Código           | Significado                              | Cuándo usarlo en kidotag10         |
+| ---------------- | ---------------------------------------- | ---------------------------------- |
+| 401 Unauthorized | No estás autenticado                     | Token ausente, inválido o expirado |
+| 403 Forbidden    | Estás autenticado pero no tienes permiso | Rol incorrecto para esa operación  |
+
+```
+Un tutor hace GET /api/alumnos (solo para profesores):
+  ✅ verificarToken pasa (token válido)
+  ❌ esProfesor falla (req.usuario.rol = 'tutor')
+  → 403 ACCESO_DENEGADO
+```
+
+<CodePlayground
+  titulo="Simulador RBAC"
+  descripcion="Simula el sistema de roles de kidotag10"
+  files={{
+    "/rbac.js": `// Simulación del sistema RBAC de kidotag10
+
+// Middleware simulado
+function verificarToken(req) {
+  if (!req.token) return { error: "401 TOKEN_REQUERIDO" };
+  // Simulamos que el token contiene estos datos
+  const usuarios = {
+    "token-tutor": { id: "1", rol: "tutor", nombre: "Ana García" },
+    "token-profesor": { id: "2", rol: "profesor", nombre: "Carlos López" },
+    "token-admin": { id: "3", rol: "admin", nombre: "Admin Sistema" },
+  };
+  req.usuario = usuarios[req.token];
+  if (!req.usuario) return { error: "401 TOKEN_INVALIDO" };
+  return null;
+}
+
+function requireRol(rol) {
+  return function (req) {
+    if (req.usuario?.rol !== rol)
+      return { error: \`403 ACCESO_DENEGADO (requiere rol: \${rol}, tienes: \${req.usuario?.rol})\` };
+    return null;
+  };
+}
+
+// Rutas simuladas
+const rutas = [
+  { metodo: "GET", ruta: "/api/alumnos", middlewares: [verificarToken, requireRol("profesor")] },
+  {
+    metodo: "PUT",
+    ruta: "/api/alumnos/:id/contacto",
+    middlewares: [verificarToken, requireRol("tutor")],
+  },
+  {
+    metodo: "DELETE",
+    ruta: "/api/alumnos/:id",
+    middlewares: [verificarToken, requireRol("admin")],
+  },
+];
+
+// Probar diferentes tokens en cada ruta
+const tokens = ["token-tutor", "token-profesor", "token-admin", "token-invalido", null];
+const emojis = { tutor: "👨‍👩‍👦", profesor: "👨‍🏫", admin: "🔑" };
+
+for (const ruta of rutas) {
+  console.log(\`\n\${ruta.metodo} \${ruta.ruta}\`);
+  for (const token of tokens) {
+    const req = { token };
+    let error = null;
+    for (const middleware of ruta.middlewares) {
+      error = middleware(req);
+      if (error) break;
+    }
+    const tokenLabel = token
+      ? req.usuario
+        ? \`\${emojis[req.usuario.rol]} \${req.usuario.nombre}\`
+        : "token inválido"
+      : "sin token";
+    console.log(
+      \` \${error ? "❌" : "✅"} \${tokenLabel.padEnd(25)} → \${error ? error.error : "200 OK"}\`,
+    );
+  }
+}`,
+}}
+entryFile="/rbac.js"
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "Un profesor hace una petición a una ruta protegida con verificarToken + esAdmin. ¿Qué código HTTP recibe?",
+      opciones: [
+        { texto: "401 — porque el token expiró" },
+        {
+          texto: "403 — porque está autenticado pero no tiene el rol admin",
+          correcta: true,
+        },
+        { texto: "404 — porque la ruta no existe para profesores" },
+        { texto: "200 — si el token es válido" },
+      ],
+      explicacion:
+        "401 = no autenticado, 403 = autenticado pero sin permiso. El profesor tiene token válido (pasa verificarToken) pero no tiene rol admin (falla esAdmin) → 403 Forbidden.",
+    },
+    {
+      pregunta:
+        "¿Cómo funciona el middleware requireRole('profesor') en kidotag10?",
+      opciones: [
+        {
+          texto:
+            "Consulta la base de datos para verificar el rol actual del usuario",
+        },
+        {
+          texto:
+            "Lee req.usuario.rol (puesto por verificarToken del JWT) y compara con el rol requerido. Si no coincide, responde 403",
+          correcta: true,
+        },
+        { texto: "Bloquea todas las peticiones excepto las del admin" },
+        { texto: "Es un alias de verificarToken" },
+      ],
+      explicacion:
+        "El flujo es: [verificarToken] (pone req.usuario) → [requireRole('profesor')] (lee req.usuario.rol) → [controller]. requireRole debe ir SIEMPRE después de verificarToken para que req.usuario exista.",
+    },
+    {
+      pregunta:
+        "¿Por qué el campo escuelaId en el JWT es importante para el RBAC de kidotag10?",
+      opciones: [
+        { texto: "Solo se usa para el perfil del usuario" },
+        {
+          texto:
+            "Permite que el middleware filtre datos por escuela automáticamente. Un profesor solo puede ver alumnos de su escuela aunque tenga rol 'profesor'",
+          correcta: true,
+        },
+        { texto: "Es solo para logging y auditoría" },
+        { texto: "No se usa en los middlewares de RBAC" },
+      ],
+      explicacion:
+        "Un sistema multi-escuela necesita aislamiento de datos. RBAC por rol no es suficiente: el profesor de la Escuela A no debe ver los alumnos de la Escuela B aunque ambos tengan el mismo rol. escuelaId en el token resuelve esto sin query adicional.",
+    },
+    {
+      pregunta:
+        "¿Qué patrón de RBAC permite a un usuario tener permisos específicos más granulares que su rol?",
+      opciones: [
+        { texto: "Modificar el JWT para cada petición" },
+        {
+          texto:
+            "Permisos adicionales en la base de datos verificados cuando el rol por sí solo es insuficiente — RBAC + permisos granulares",
+          correcta: true,
+        },
+        { texto: "Usar múltiples tokens, uno por permiso" },
+        { texto: "No es posible con JWT" },
+      ],
+      explicacion:
+        "Ejemplo: el rol 'profesor' puede ver asistencias, pero solo el profesor asignado a un grupo puede editarlas. RBAC maneja los permisos generales; para granularidad, se verifica en el controller que req.usuario.id coincida con el profesor del grupo.",
+    },
+  ]}
+/>

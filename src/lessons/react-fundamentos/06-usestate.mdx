@@ -1,0 +1,254 @@
+# useState: estado local
+
+El hook `useState` permite que un componente "recuerde" valores entre renders. Cuando el estado cambia, React vuelve a renderizar el componente automáticamente.
+
+## Sintaxis
+
+```jsx
+const [valor, setValor] = useState(valorInicial);
+//     ↑         ↑               ↑
+// estado actual  setter para    valor al montar
+//               actualizarlo    (solo se usa 1 vez)
+```
+
+**Regla fundamental:** nunca mutes el estado directamente; siempre usa el setter.
+
+```jsx
+// ❌ INCORRECTO — React no detecta el cambio
+lista.push({ id: 4, nombre: "Pedro" });
+
+// ✅ CORRECTO — nuevo array = nuevo estado
+setLista([...lista, { id: 4, nombre: "Pedro" }]);
+```
+
+<CodePlayground
+  titulo="kidotag-frontend — L3: Toggle de asistencia con useState"
+  plantilla="react"
+  entryFile="/App.jsx"
+  objetivo="Agregar estado interactivo: el usuario puede marcar y desmarcar la asistencia de cada alumno con un clic."
+  archivos={{
+    '/styles.css': { code: `body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f8fafc;
+}
+.app {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+.app h1 {
+  color: #1e293b;
+  font-size: 1.4rem;
+  border-bottom: 2px solid #274c77;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+.badge-regular {
+  background: #fef9c3;
+  color: #854d0e;
+}
+.badge-riesgo {
+  background: #fee2e2;
+  color: #b91c1c;
+}`, readOnly: true },
+    '/TarjetaAlumno.jsx': { code: `function getBadge(a) {
+  if (a >= 90) return { clase: "badge-ok", texto: "Excelente" };
+  if (a >= 75) return { clase: "badge-regular", texto: "Regular" };
+  return { clase: "badge-riesgo", texto: "En riesgo" };
+}
+export default function TarjetaAlumno({ alumno }) {
+  const badge = getBadge(alumno.asistencia);
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "10px 14px",
+        borderRadius: 8,
+        marginBottom: 8,
+        background: alumno.presente ? "white" : "#fef9f9",
+        border: "1px solid " + (alumno.presente ? "#e2e8f0" : "#fecaca"),
+      }}
+    >
+      <div>
+        <strong>{alumno.nombre}</strong>
+        <span style={{ marginLeft: 8, color: "#64748b", fontSize: 13 }}>{alumno.grado}</span>
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <span className={"badge " + badge.clase}>{badge.texto}</span>
+        <span style={{ fontSize: 18 }}>{alumno.presente ? "✓" : "✗"}</span>
+      </div>
+    </div>
+  );
+}`, readOnly: true },
+    '/App.jsx': `import { useState } from "react";
+import "./styles.css";
+import TarjetaAlumno from "./TarjetaAlumno";
+
+const INICIAL = [
+{ id: 1, nombre: "Ana Garcia", grado: "3A", asistencia: 95, presente: true },
+{ id: 2, nombre: "Luis Mendez", grado: "3A", asistencia: 78, presente: false },
+{ id: 3, nombre: "Mia Torres", grado: "4B", asistencia: 62, presente: false },
+{ id: 4, nombre: "Carlos Ruiz", grado: "4B", asistencia: 100, presente: true },
+];
+
+export default function App() {
+  // Estado: array de alumnos con campo "presente" mutable por el usuario
+  const [alumnos, setAlumnos] = useState(INICIAL);
+
+// Actualiza un alumno sin mutar el array original
+const togglePresente = (id) => {
+setAlumnos((prev) => prev.map((a) => (a.id === id ? { ...a, presente: !a.presente } : a)));
+};
+
+const presentes = alumnos.filter((a) => a.presente).length;
+
+return (
+<div className="app">
+<h1>KidoTag — Asistencia</h1>
+<p style={{ color: "#64748b", fontSize: 13, margin: "0 0 1rem" }}>
+{presentes} de {alumnos.length} presentes — haz clic para marcar
+</p>
+{alumnos.map((a) => (
+<div key={a.id} onClick={() => togglePresente(a.id)} style={{ cursor: "pointer" }}>
+<TarjetaAlumno alumno={a} />
+</div>
+))}
+</div>
+);
+}`,
+}}
+verificaciones={[
+{
+id: "import-usestate",
+titulo: "useState importado de React",
+descripcion: "useState debe importarse desde 'react' para poder usarlo.",
+tipo: "tieneImport",
+archivo: "/App.jsx",
+desde: "react",
+pista: "Escribe al inicio: import { useState } from 'react';",
+},
+{
+id: "usa-usestate",
+titulo: "useState() llamado para inicializar estado",
+descripcion: "Debes llamar a useState() para crear el estado de alumnos.",
+tipo: "contiene",
+archivo: "/App.jsx",
+patron: "useState(",
+pista: "Ejemplo: const [alumnos, setAlumnos] = useState(INICIAL);",
+},
+{
+id: "usa-set",
+titulo: "setAlumnos() actualiza el estado",
+descripcion: "Debes usar la función setter para actualizar el estado.",
+tipo: "contiene",
+archivo: "/App.jsx",
+patron: "setAlumnos(",
+pista: "Ejemplo: setAlumnos((prev) => prev.map((a) => ...))",
+},
+{
+id: "usa-map",
+titulo: ".map() renderiza la lista de alumnos",
+descripcion: "Usa .map() para convertir el array en elementos JSX.",
+tipo: "contiene",
+archivo: "/App.jsx",
+patron: ".map(",
+pista: "Ejemplo: alumnos.map((a) => <div key={a.id}>...</div>)",
+},
+{
+id: "usa-filter",
+titulo: ".filter() cuenta los presentes",
+descripcion: ".filter() crea un sub-array con los alumnos que cumplen la condición.",
+tipo: "contiene",
+archivo: "/App.jsx",
+patron: ".filter(",
+pista: "Ejemplo: alumnos.filter((a) => a.presente).length",
+},
+]}
+retoFinal="Agrega un boton 'Guardar asistencia' que imprima en consola solo los ids de los alumnos ausentes cuando se hace clic: console.log('Ausentes:', ...)."
+/>
+
+<Callout variante="kidotag" titulo="Patrón en kidotag10/web">
+En las páginas de kidotag10 (como `web/src/pages/Alumnos.js`) encontrarás este
+patrón constantemente: `useState` para `alumnos`, `loading`, `error` y el formulario.
+El formulario de registro usa un objeto de estado con `{ nombre, matricula, grupoId, ... }`.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "Tienes const [count, setCount] = useState(0). ¿Qué hace setCount(prev => prev + 1)?",
+      opciones: [
+        { texto: "Es un error — no se puede pasar una función a setCount" },
+        {
+          texto: "Actualiza count usando el valor más reciente del estado",
+          correcta: true,
+        },
+        { texto: "Resetea count a 0" },
+      ],
+      explicacion:
+        "Pasar una función al setter (forma funcional) garantiza que usas el valor más reciente del estado. Es la forma recomendada cuando el nuevo valor depende del anterior.",
+    },
+    {
+      pregunta:
+        '¿Por qué setAlumno({ ...alumno, nombre: "Ana" }) en lugar de alumno.nombre = "Ana"?',
+      opciones: [
+        { texto: "Es solo una convención de estilo" },
+        {
+          texto:
+            "Porque React no detecta mutaciones directas — necesita un nuevo objeto para re-renderizar",
+          correcta: true,
+        },
+        { texto: "Porque los objetos en JavaScript son inmutables" },
+      ],
+      explicacion:
+        "React detecta cambios por referencia. Si mutes el mismo objeto, la referencia no cambia y React no sabe que debe re-renderizar. Crear un nuevo objeto con spread garantiza la detección.",
+    },
+    {
+      pregunta:
+        "¿Cuándo conviene usar múltiples useState separados vs un solo useState con un objeto?",
+      opciones: [
+        { texto: "Siempre un objeto — más organizado" },
+        {
+          texto:
+            "Múltiples useState para valores independientes; objeto cuando los valores siempre se actualizan juntos (como los campos de un formulario)",
+          correcta: true,
+        },
+        { texto: "Siempre múltiples useState para mejor rendimiento" },
+        { texto: "No hay diferencia funcional" },
+      ],
+      explicacion:
+        'En el formulario de kidotag: const [form, setForm] = useState({ nombre: "", matricula: "", grupoId: "" }) — se actualizan juntos al enviar. Pero const [loading, setLoading] = useState(false) y const [error, setError] = useState(null) son independientes.',
+    },
+    {
+      pregunta:
+        "¿Qué sucede cuando llamas a un setter de useState varias veces en el mismo evento?",
+      opciones: [
+        { texto: "React re-renderiza el componente una vez por cada llamada" },
+        {
+          texto:
+            "React agrupa (batch) las actualizaciones y hace un solo re-render al final del evento",
+          correcta: true,
+        },
+        { texto: "Solo la última llamada surte efecto" },
+        { texto: "React lanza un error por múltiples updates" },
+      ],
+      explicacion:
+        "State batching evita re-renders innecesarios. En el handler de submit de kidotag: setLoading(true); setError(null); — React agrupa ambas actualizaciones y re-renderiza solo una vez.",
+    },
+  ]}
+/>

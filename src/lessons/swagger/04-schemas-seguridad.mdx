@@ -1,0 +1,185 @@
+# Schemas reutilizables y seguridad Bearer
+
+OpenAPI permite definir schemas en `components/schemas` y referenciarlos
+con `$ref` para evitar repetición. También define cómo se autentica la API.
+
+## Schemas en kidotag10
+
+```javascript
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *
+ *     Alumno:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *           example: "507f1f77bcf86cd799439011"
+ *         nombre:
+ *           type: string
+ *           example: "Ana García López"
+ *         uid_nfc:
+ *           type: string
+ *           example: "A1B2C3D4"
+ *           nullable: true
+ *         tutor:
+ *           $ref: '#/components/schemas/TutorBasico'
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *
+ *     TutorBasico:
+ *       type: object
+ *       properties:
+ *         _id:     { type: string }
+ *         nombre:  { type: string }
+ *         email:   { type: string, format: email }
+ *
+ *     ApiError:
+ *       type: object
+ *       properties:
+ *         ok:
+ *           type: boolean
+ *           example: false
+ *         error:
+ *           type: string
+ *           example: "TOKEN_EXPIRADO"
+ */
+```
+
+## Seguridad Bearer JWT
+
+```javascript
+/**
+ * @swagger
+ * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ *       description: |
+ *         JWT obtenido desde POST /api/auth/login.
+ *         Formato: "Bearer eyJhbGciOiJIUzI1NiJ9..."
+ */
+
+// Aplicar a un endpoint específico:
+/**
+ * @swagger
+ * /api/alumnos:
+ *   get:
+ *     security:
+ *       - bearerAuth: []    ← este endpoint requiere el token
+ *     summary: Listar alumnos de la escuela
+ */
+
+// Aplicar globalmente en la definición base:
+// security: [{ bearerAuth: [] }]
+// Luego en endpoints públicos se puede sobrescribir:
+// security: []
+```
+
+## El patrón de respuesta de kidotag10
+
+kidotag10 usa un patrón consistente `{ ok, data, error }` para todas las respuestas:
+
+```javascript
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     SuccessResponse:
+ *       type: object
+ *       properties:
+ *         ok:   { type: boolean, example: true }
+ *         data: { }  # el tipo varía por endpoint
+ *
+ *     ErrorResponse:
+ *       type: object
+ *       properties:
+ *         ok:    { type: boolean, example: false }
+ *         error: { type: string, example: "RECURSO_NO_ENCONTRADO" }
+ */
+```
+
+<Callout variante="tip" titulo="Swagger UI en desarrollo">
+  Con kidotag10 corriendo en modo desarrollo, visita
+  `http://localhost:4000/api-docs` para ver la interfaz interactiva. Puedes
+  hacer login, copiar el token y usarlo en los endpoints protegidos directamente
+  desde el navegador.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Para qué sirve el $ref en OpenAPI como '$ref: '#/components/schemas/Alumno''?",
+      opciones: [
+        { texto: "Para importar el modelo de Mongoose" },
+        {
+          texto:
+            "Para reutilizar una definición de schema en múltiples endpoints sin repetirla",
+          correcta: true,
+        },
+        {
+          texto: "Para crear una referencia de base de datos entre colecciones",
+        },
+        { texto: "Para hacer una petición HTTP a otro endpoint" },
+      ],
+      explicacion:
+        "$ref es una referencia JSON. Apunta a una definición existente en components/schemas — así defines el schema Alumno una sola vez y lo referencias en todos los endpoints que lo retornan.",
+    },
+    {
+      pregunta:
+        "¿Cómo se define un securityScheme de tipo Bearer JWT en OpenAPI 3.0?",
+      opciones: [
+        { texto: "security: [{ bearer: [] }] directamente en el path" },
+        {
+          texto:
+            "En components/securitySchemes: type: http, scheme: bearer, bearerFormat: JWT. Luego se referencia con security: [{ bearerAuth: [] }] en cada ruta protegida",
+          correcta: true,
+        },
+        {
+          texto: "Swagger detecta JWT automáticamente del header Authorization",
+        },
+        { texto: "Con el campo authorization: jwt en el info object" },
+      ],
+      explicacion:
+        "El securityScheme de kidotag10 define bearerAuth. Cada ruta protegida incluye security: [{ bearerAuth: [] }], lo que hace que Swagger UI muestre el botón Authorize para que el usuario pegue su token.",
+    },
+    {
+      pregunta:
+        "¿Qué propiedad del schema OpenAPI indica qué campos son obligatorios en el body?",
+      opciones: [
+        { texto: "required: true en cada campo individual" },
+        {
+          texto:
+            "Una propiedad 'required' a nivel del objeto schema que es un array de nombres de campos",
+          correcta: true,
+        },
+        { texto: "mandatory: [campo1, campo2]" },
+        { texto: "El campo es obligatorio si no tiene default" },
+      ],
+      explicacion:
+        "En OpenAPI: `required: [nombre, matricula, grupoId]` en el schema Alumno indica que esos campos son obligatorios. Si se omite, Swagger UI marca el campo con asterisco y las herramientas de validación lo aplican.",
+    },
+    {
+      pregunta:
+        "¿Por qué usar components/schemas en lugar de definir el schema inline en cada ruta?",
+      opciones: [
+        { texto: "Es una preferencia estética sin impacto real" },
+        {
+          texto:
+            "Permite reutilizar el mismo schema en múltiples rutas (GET retorna Alumno, POST recibe Alumno, PATCH recibe Alumno parcial) sin duplicar la definición",
+          correcta: true,
+        },
+        { texto: "Los schemas inline no funcionan en Swagger UI" },
+        { texto: "components es obligatorio en OpenAPI 3.0" },
+      ],
+      explicacion:
+        "En kidotag10, el schema Alumno se referencia en: GET /alumnos (array de Alumno), GET /alumnos/:id (un Alumno), POST /alumnos (cuerpo de Alumno), la respuesta de POST /auth/login (incluye el objeto Alumno del usuario). Sin components, repetirías la misma definición 4+ veces.",
+    },
+  ]}
+/>

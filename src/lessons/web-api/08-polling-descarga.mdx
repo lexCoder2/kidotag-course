@@ -1,0 +1,176 @@
+# Polling manual y descarga de archivos (Excel)
+
+kidotag10 permite exportar reportes de asistencia como archivos Excel.
+En el frontend, esto requiere manejar respuestas binarias (`Blob`).
+
+## Descarga de archivos con fetch + Blob
+
+```javascript
+// web/src/utils/descargarReporte.js
+async function descargarReporteExcel(grupoId, fecha) {
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(
+    `${API_URL}/asistencias/reporte?grupoId=${grupoId}&fecha=${fecha}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  if (!res.ok) {
+    const { error } = await res.json();
+    throw new Error(error);
+  }
+
+  // Respuesta binaria — no llamar .json()
+  const blob = await res.blob();
+
+  // Crear URL temporal y simular un clic en un enlace <a>
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `asistencias-${fecha}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  // Liberar la URL temporal de memoria
+  URL.revokeObjectURL(url);
+}
+```
+
+## Polling: verificar estado periódicamente
+
+Aunque kidotag10 usa Socket.IO para tiempo real, hay casos donde un simple
+polling es suficiente (ej: verificar si el servidor está disponible):
+
+```javascript
+// Polling con setInterval + cleanup en React
+import { useEffect } from "react";
+
+function useServerStatus(url) {
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(url);
+        setOnline(res.ok);
+      } catch {
+        setOnline(false);
+      }
+    };
+
+    check(); // primera vez inmediatamente
+    const id = setInterval(check, 30_000); // cada 30 segundos
+
+    return () => clearInterval(id); // cleanup al desmontar
+  }, [url]);
+}
+```
+
+<Callout variante="warning" titulo="Libera siempre la URL del Blob">
+  `URL.createObjectURL(blob)` crea una referencia al Blob en memoria del
+  navegador. Si no llamas a `URL.revokeObjectURL(url)`, esa memoria nunca se
+  libera hasta cerrar la pestaña.
+</Callout>
+
+## El backend: xlsx genera el archivo
+
+```javascript
+// src/controllers/asistencia.controller.js
+const xlsx = require("xlsx");
+
+async function descargarReporte(req, res) {
+  const asistencias = await Asistencia.find({
+    /* filtros */
+  }).populate("alumno", "nombre");
+
+  const filas = asistencias.map((a) => ({
+    Alumno: a.alumno.nombre,
+    Fecha: a.fecha.toLocaleDateString("es-MX"),
+    Estado: a.presente ? "Presente" : "Ausente",
+  }));
+
+  const wb = xlsx.utils.book_new();
+  const ws = xlsx.utils.json_to_sheet(filas);
+  xlsx.utils.book_append_sheet(wb, ws, "Asistencias");
+
+  const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  res.setHeader("Content-Disposition", 'attachment; filename="reporte.xlsx"');
+  res.send(buffer);
+}
+```
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué al descargar el Excel NO se debe llamar res.json() en el frontend?",
+      opciones: [
+        { texto: "Porque res.json() solo funciona con arrays" },
+        {
+          texto:
+            "Porque el servidor envía un buffer binario (xlsx), no JSON — llamar .json() intentaría parsear bytes binarios como texto JSON y fallaría",
+          correcta: true,
+        },
+        { texto: "Porque los navegadores bloquean .json() en descargas" },
+        { texto: "Por razones de seguridad de CORS" },
+      ],
+      explicacion:
+        "El servidor envía bytes binarios del archivo Excel con Content-Type application/vnd.openxmlformats... — no JSON. Se debe usar .blob() para obtener los datos binarios y luego crear una URL temporal para la descarga.",
+    },
+    {
+      pregunta:
+        "¿Cómo se dispara la descarga de un archivo en el navegador sin abrir una nueva página?",
+      opciones: [
+        { texto: "window.download(blob, nombre)" },
+        {
+          texto:
+            "Crear un elemento anchor con URL.createObjectURL(blob) y download='nombre.xlsx', añadirlo al DOM, hacer clic programáticamente y luego removerlo",
+          correcta: true,
+        },
+        {
+          texto:
+            "El navegador descarga automáticamente cuando recibe un Content-Disposition",
+        },
+        { texto: "Con document.createElement('download')" },
+      ],
+      explicacion:
+        "El truco del anchor: const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'asistencias.xlsx'; document.body.appendChild(a); a.click(); a.remove(). Simula un clic del usuario en un link de descarga.",
+    },
+    {
+      pregunta:
+        "¿Por qué es necesario llamar URL.revokeObjectURL() después de la descarga en kidotag?",
+      opciones: [
+        { texto: "Para confirmar al servidor que la descarga fue exitosa" },
+        {
+          texto:
+            "Para liberar la memoria del Blob del navegador — sin revocarlo, la URL temporal persiste en memoria mientras dure la sesión",
+          correcta: true,
+        },
+        { texto: "Para que el archivo no pueda descargarse dos veces" },
+        { texto: "La URL se revoca automáticamente al hacer clic" },
+      ],
+      explicacion:
+        "URL.createObjectURL() crea una referencia en memoria al Blob. Sin revocarla, cada exportación de Excel en kidotag acumula memoria. URL.revokeObjectURL(url) libera esa referencia tan pronto la descarga inicia.",
+    },
+    {
+      pregunta:
+        "¿Qué ventaja tiene generar el Excel en el servidor (Node.js + xlsx) versus en el cliente (React + xlsx)?",
+      opciones: [
+        { texto: "El cliente puede generar archivos más grandes" },
+        {
+          texto:
+            "El servidor tiene acceso directo a MongoDB y puede procesar grandes volúmenes de datos sin sobrecargar el navegador del usuario",
+          correcta: true,
+        },
+        { texto: "Node.js no puede generar archivos xlsx" },
+        { texto: "La generación en cliente es más segura" },
+      ],
+      explicacion:
+        "En kidotag, exportar 500 registros de asistencia implica: query a MongoDB, populate de alumno y grupo, transformar datos. Hacer esto en el servidor y enviar el archivo listo es más eficiente que enviar 500 objetos JSON al cliente para que los procese.",
+    },
+  ]}
+/>

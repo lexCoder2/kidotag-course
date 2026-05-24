@@ -1,0 +1,240 @@
+# JSX y componentes funcionales
+
+<LibCard
+  nombre="react"
+  version="18.2.0"
+  npm="react"
+  categoria="frontend"
+  docs="https://react.dev/"
+  descripcion="Librería de UI basada en componentes. React gestiona el árbol de componentes, el renderizado eficiente con Virtual DOM y el sistema de hooks para estado y efectos secundarios."
+  porque="El modelo de componentes hace que la UI de kidotag10 (TarjetaAlumno, FormularioAsistencia, Dashboard) sea modular y reutilizable. React 18 añade Concurrent Mode y mejoras de rendimiento automáticas."
+  usoEjemplo={`// web/src/components/TarjetaAlumno.jsx de kidotag10
+import { useState } from 'react';
+
+function TarjetaAlumno({ alumno, onEditar }) {
+const [expandida, setExpandida] = useState(false);
+return (
+
+<article className="tarjeta">
+<h3>{alumno.nombre}</h3>
+<button onClick={() => setExpandida(v => !v)}>Detalles</button>
+{expandida && <p>NFC: {alumno.uid_nfc ?? 'Sin asignar'}</p>}
+</article>
+);
+}`}
+alternativas={[
+{ nombre: "Vue 3", porque_no: "Muy similar en capacidades. React tiene mayor demanda laboral y ecosistema más amplio." },
+{ nombre: "Svelte", porque_no: "Sin Virtual DOM, compilado. Excelente rendimiento, pero ecosistema más pequeño." },
+{ nombre: "Angular", porque_no: "Framework completo de Google. Añade demasiada complejidad para un proyecto de este tamaño." },
+]}
+/>
+
+**React** es la biblioteca que usa kidotag10 para su frontend. En lugar de manipular el DOM directamente, describes **cómo debería verse la UI** y React se encarga de actualizarla.
+
+## ¿Qué es JSX?
+
+JSX es una extensión de JavaScript que permite escribir HTML dentro de tu código JS. Vite/Babel lo transforma en llamadas a `React.createElement()`.
+
+```jsx
+// JSX
+const elemento = <h1 className="titulo">Hola, {nombre}</h1>;
+
+// Lo que genera el compilador:
+const elemento = React.createElement(
+  "h1",
+  { className: "titulo" },
+  "Hola, " + nombre,
+);
+```
+
+<CodePlayground
+  titulo="kidotag-frontend — L2: Componente TarjetaAlumno"
+  plantilla="react"
+  entryFile="/TarjetaAlumno.jsx"
+  objetivo="Crear TarjetaAlumno como componente funcional reutilizable que recibe datos del alumno via props."
+  archivos={{
+    '/styles.css': { code: `body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f8fafc;
+}
+.app {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+.app h1 {
+  color: #1e293b;
+  font-size: 1.4rem;
+  border-bottom: 2px solid #274c77;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+.badge-regular {
+  background: #fef9c3;
+  color: #854d0e;
+}
+.badge-riesgo {
+  background: #fee2e2;
+  color: #b91c1c;
+}`, readOnly: true },
+    '/App.jsx': { code: `import "./styles.css";
+import TarjetaAlumno from "./TarjetaAlumno";
+
+const alumnos = [
+  { id: 1, nombre: "Ana Garcia", grado: "3A", asistencia: 95 },
+  { id: 2, nombre: "Luis Mendez", grado: "3A", asistencia: 78 },
+  { id: 3, nombre: "Mia Torres", grado: "4B", asistencia: 62 },
+  { id: 4, nombre: "Carlos Ruiz", grado: "4B", asistencia: 100 },
+];
+
+export default function App() {
+  return (
+    <div className="app">
+      <h1>KidoTag — Asistencia</h1>
+      {alumnos.map((a) => (
+        <TarjetaAlumno key={a.id} alumno={a} />
+      ))}
+    </div>
+  );
+}`, readOnly: true },
+    '/TarjetaAlumno.jsx': `// TarjetaAlumno.jsx — Componente funcional reutilizable
+// Recibe un objeto alumno como prop y lo muestra en una tarjeta con badge de estado
+
+function getBadge(asistencia) {
+  if (asistencia >= 90) return { clase: "badge-ok", texto: "Excelente" };
+  if (asistencia >= 75) return { clase: "badge-regular", texto: "Regular" };
+  return { clase: "badge-riesgo", texto: "En riesgo" };
+}
+
+// La prop alumno es un objeto: { nombre, grado, asistencia }
+export default function TarjetaAlumno({ alumno }) {
+  const badge = getBadge(alumno.asistencia);
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "10px 14px",
+        borderRadius: 8,
+        marginBottom: 8,
+        background: "white",
+        border: "1px solid #e2e8f0",
+      }}
+    >
+      <div>
+        <strong>{alumno.nombre}</strong>
+        <span style={{ marginLeft: 8, color: "#64748b", fontSize: 13 }}>{alumno.grado}</span>
+      </div>
+      <span className={"badge " + badge.clase}>
+        {alumno.asistencia}% — {badge.texto}
+      </span>
+    </div>
+  );
+}`,
+}}
+pasosIncrementales={[
+"Ejecuta y verifica que aparecen 4 tarjetas con el badge correcto segun asistencia.",
+"Agrega un emoji al texto del badge en getBadge: ✅ Excelente, ⚠️ Regular, ❌ En riesgo.",
+"Agrega el numero de faltas: agrega faltas: 2 a un alumno en App.jsx y muéstralo en la tarjeta.",
+"Agrega un onClick al div contenedor que llame a console.log(alumno.nombre) al hacer clic.",
+]}
+retoFinal="Agrega una prop 'seleccionado: boolean' a TarjetaAlumno. Cuando sea true, cambia el borde a #274c77 y el fondo a #eff6ff. Prueba pasandola a uno de los alumnos en App.jsx."
+/>
+
+## Reglas de JSX
+
+```jsx
+// 1. Un solo elemento raíz (o Fragment)
+return (
+  <>
+    <h1>Título</h1>
+    <p>Párrafo</p>
+  </>
+)
+
+// 2. Atributos en camelCase
+<div className="caja" onClick={fn} tabIndex={0} />
+//   ↑ class → className     ↑ eventos en camelCase
+
+// 3. Expresiones entre llaves {}
+<p>Bienvenido, {usuario.nombre.toUpperCase()}</p>
+<input value={edad * 2 + 1} />
+
+// 4. Elementos de cierre obligatorio
+<input type="text" />   // ← barra de cierre
+<img src={url} alt="" />
+```
+
+<Callout variante="kidotag" titulo="En kidotag10/web">
+  Todos los componentes en `web/src/components/` son funciones JavaScript con
+  JSX. Por ejemplo, `web/src/components/Navbar.js` exporta una función que
+  retorna la barra de navegación. Los componentes de página están en
+  `web/src/pages/`.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Por qué se usa className en JSX en lugar de class?",
+      opciones: [
+        { texto: "Es un error histórico sin razón técnica" },
+        {
+          texto: "class es una palabra reservada en JavaScript",
+          correcta: true,
+        },
+        { texto: "Para diferenciarlo del CSS" },
+      ],
+      explicacion:
+        "En JavaScript, class es una palabra reservada (para definir clases ES6). JSX se compila a JavaScript, por eso usa className para evitar conflictos.",
+    },
+    {
+      pregunta:
+        "¿Qué retorna obligatoriamente un componente funcional de React?",
+      opciones: [
+        { texto: "Un objeto JavaScript" },
+        {
+          texto: "Un elemento JSX (o null para no renderizar nada)",
+          correcta: true,
+        },
+        { texto: "Un string con HTML" },
+      ],
+      explicacion:
+        "Los componentes funcionales retornan JSX (que se convierte en elementos React), o null si no deben renderizar nada. No retornan strings HTML directamente.",
+    },
+    {
+      pregunta: "En JSX de kidotag, ¿cómo se escribe una etiqueta sin contenido como un input?",
+      opciones: [
+        { texto: "<input></input>" },
+        { texto: "<input /> — self-closing tag con barra al final, obligatorio en JSX para elementos sin hijos", correcta: true },
+        { texto: "<input> — igual que en HTML5" },
+        { texto: "<Input /> — siempre en mayúscula" },
+      ],
+      explicacion:
+        "En HTML5 puedes escribir <input>, pero JSX requiere cierre explícito: <input />. Los componentes React siempre empiezan con mayúscula (<AlumnoCard />); los elementos HTML en minúscula (<div>).",
+    },
+    {
+      pregunta: "¿Cómo se inserta una expresión JavaScript en JSX?",
+      opciones: [
+        { texto: "Con ${expresion} igual que en template literals" },
+        { texto: "Con {expresion} — llaves curvas para evaluar cualquier expresión JavaScript dentro de JSX", correcta: true },
+        { texto: "Con {{expresion}} — doble llaves" },
+        { texto: "Con <!-- expresion --> igual que en HTML" },
+      ],
+      explicacion:
+        "En JSX: <p>{alumno.nombre}</p>, <span>{asistencia > 80 ? 'Aprobado' : 'Riesgo'}</span>, <img src={alumno.foto} />. Las llaves permiten interpolar cualquier expresión JavaScript válida.",
+    },
+  ]}
+/>

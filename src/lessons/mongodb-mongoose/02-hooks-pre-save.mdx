@@ -1,0 +1,158 @@
+# Hooks pre("save"): hashear passwords
+
+Mongoose ofrece un sistema de **middleware** (hooks) que ejecutan funciones
+automáticamente antes o después de operaciones como save, validate, deleteOne, etc.
+
+## ¿Qué es un hook pre('save')?
+
+```javascript
+schema.pre("save", async function (next) {
+  // Se ejecuta ANTES de guardar el documento en MongoDB
+  // 'this' apunta al documento que se está guardando
+  // next() continúa con el guardado
+  // next(error) cancela el guardado con ese error
+});
+```
+
+## El hook de kidotag10
+
+```javascript
+// src/models/tutor.model.js
+const bcrypt = require("bcryptjs");
+
+const tutorSchema = new mongoose.Schema({
+  nombre: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+});
+
+// Hook pre-save: hashear el password antes de guardar
+tutorSchema.pre("save", async function (next) {
+  // ← 'this' = instancia de Tutor (el documento)
+  // Solo hashear si el campo fue modificado
+  if (!this.isModified("password")) return next();
+
+  try {
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+  } catch (err) {
+    next(err); // propaga el error → Mongoose cancela el save
+  }
+});
+```
+
+## isModified(): la clave de la idempotencia
+
+Sin `isModified()`, actualizar el nombre del tutor volvería a hashear un
+hash ya existente — rompiendo la autenticación:
+
+```javascript
+// Sin isModified:
+const tutor = await Tutor.findById(id);
+tutor.nombre = "Nuevo nombre"; // ← solo cambia el nombre
+await tutor.save();
+// ❌ El hook volvería a hashear el hash del password → ROTO
+
+// Con isModified:
+// isModified('password') = false → el hook no hace nada ✅
+```
+
+## Otros hooks útiles de Mongoose
+
+```javascript
+// Post-save: ejecuta DESPUÉS de guardar
+schema.post("save", function (doc) {
+  console.log("Documento guardado:", doc._id);
+});
+
+// Pre-deleteOne: ejecuta antes de eliminar
+schema.pre("deleteOne", { document: true }, async function (next) {
+  // Limpiar registros relacionados antes de borrar el tutor
+  await Alumno.updateMany({ tutor: this._id }, { $unset: { tutor: 1 } });
+  next();
+});
+
+// Pre-validate: ejecuta antes de validar
+schema.pre("validate", function (next) {
+  this.email = this.email?.toLowerCase().trim();
+  next();
+});
+```
+
+<Callout variante="warning" titulo="findByIdAndUpdate NO dispara pre('save')">
+  Los hooks de `save` solo se ejecutan con `doc.save()`. Si usas
+  `Tutor.findByIdAndUpdate(id, { password: nuevoHash })`, el hook NO se ejecuta —
+  debes hashear manualmente antes de llamar a update.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué el hook pre('save') de kidotag10 verifica this.isModified('password') antes de hashear?",
+      opciones: [
+        {
+          texto:
+            "Para verificar que el password cumple los requisitos mínimos de seguridad",
+        },
+        {
+          texto:
+            "Para evitar hashear un password que ya fue hasheado en un save anterior — lo que rompería la autenticación",
+          correcta: true,
+        },
+        {
+          texto: "Porque bcrypt.hash() falla si el string ya es un hash bcrypt",
+        },
+        { texto: "Por razones de rendimiento" },
+      ],
+      explicacion:
+        "Si el hook no verificara isModified, actualizar cualquier otro campo del documento volvería a hashear el hash ya guardado, produciendo un hash de hash que nunca coincidiría con el password original.",
+    },
+    {
+      pregunta: "¿Qué es this.isNew dentro de un hook pre('save') de Mongoose?",
+      opciones: [
+        { texto: "Siempre es false — no existe esa propiedad" },
+        {
+          texto:
+            "true cuando el documento se está creando por primera vez; false cuando se está actualizando un documento existente",
+          correcta: true,
+        },
+        { texto: "true cuando el schema fue definido recientemente" },
+        { texto: "Indica si el modelo fue importado recientemente" },
+      ],
+      explicacion:
+        "this.isNew permite diferenciar entre una creación y una actualización. En kidotag10, al crear un nuevo tutor siempre hasheas el password; al actualizar, solo si this.isModified('password').",
+    },
+    {
+      pregunta: "¿Cuándo se ejecuta un hook post('save') en Mongoose?",
+      opciones: [
+        { texto: "Antes de que el documento llegue a MongoDB" },
+        {
+          texto:
+            "Después de que el documento se haya guardado exitosamente en MongoDB",
+          correcta: true,
+        },
+        { texto: "Solo cuando hay un error al guardar" },
+        { texto: "Al leer el documento de la base de datos" },
+      ],
+      explicacion:
+        "Los hooks post se ejecutan después de la operación. post('save') es útil para acciones secundarias: en kidotag10 podrías enviar un correo al tutor después de crear su cuenta, sin bloquear el guardado.",
+    },
+    {
+      pregunta:
+        "¿Por qué los hooks de Mongoose pre('save') usan function() en lugar de funciones flecha?",
+      opciones: [
+        { texto: "Es solo una convención visual" },
+        {
+          texto:
+            "Porque las funciones flecha no tienen su propio this — no puedes acceder al documento con this dentro de una flecha",
+          correcta: true,
+        },
+        { texto: "Porque Mongoose no acepta funciones flecha en hooks" },
+        { texto: "Para compatibilidad con versiones antiguas de Node.js" },
+      ],
+      explicacion:
+        "En un hook: `tutorSchema.pre('save', async function() { this.password... })` — this es el documento Mongoose. Con una función flecha, this sería el contexto externo (undefined en modo estricto), y acceder a this.password fallaría.",
+    },
+  ]}
+/>

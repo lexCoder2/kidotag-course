@@ -1,0 +1,193 @@
+# Middleware verificarToken
+
+Después del login, el cliente guarda el JWT y lo envía en cada petición
+protegida. El middleware `verificarToken` intercepta esas peticiones.
+
+## El protocolo Bearer
+
+Por convención HTTP, los JWTs viajan en el header `Authorization` con
+el esquema **Bearer** ("portador"):
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOi...
+```
+
+## El middleware en kidotag10
+
+```javascript
+// src/middlewares/auth.middleware.js
+const jwt = require("jsonwebtoken");
+
+function verificarToken(req, res, next) {
+  // 1. Extraer el header
+  const authHeader = req.headers["authorization"];
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ ok: false, error: "TOKEN_REQUERIDO" });
+  }
+
+  // 2. Aislar el token (quitar "Bearer ")
+  const token = authHeader.split(" ")[1];
+
+  try {
+    // 3. Verificar firma y expiración
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // 4. Adjuntar datos del usuario a req para los controladores
+    req.usuario = decoded; // { id, rol, escuelaId, iat, exp }
+    next();
+  } catch (error) {
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ ok: false, error: "TOKEN_EXPIRADO" });
+    }
+    return res.status(401).json({ ok: false, error: "TOKEN_INVALIDO" });
+  }
+}
+
+module.exports = { verificarToken };
+```
+
+## Cómo se aplica en las rutas
+
+```javascript
+// src/routes/alumno.routes.js
+const { verificarToken } = require("../middlewares/auth.middleware");
+const {
+  listarAlumnos,
+  crearAlumno,
+} = require("../controllers/alumno.controller");
+
+router.get("/", verificarToken, listarAlumnos); // protegida
+router.post("/", verificarToken, crearAlumno); // protegida
+router.get("/publico", listarPublico); // sin protección
+```
+
+<Mermaid titulo="Flujo de una petición protegida">
+{`sequenceDiagram
+  actor C as Cliente React
+  participant M as verificarToken
+  participant Ctrl as alumno.controller.js
+
+C->>M: GET /api/alumnos\nAuthorization: Bearer eyJ...
+alt Header ausente o malformado
+M-->>C: 401 TOKEN_REQUERIDO
+else Token expirado
+M-->>C: 401 TOKEN_EXPIRADO
+else Token inválido
+M-->>C: 401 TOKEN_INVALIDO
+else Token válido
+M->>M: req.usuario = { id, rol, escuelaId }
+M->>Ctrl: next() → listarAlumnos(req, res)
+Ctrl-->>C: 200 { ok: true, data: [...] }
+end`}
+
+</Mermaid>
+
+## Acceder al usuario en el controlador
+
+Una vez que el middleware adjunta `req.usuario`, los controladores pueden
+usarlo sin volver a consultar la base de datos:
+
+```javascript
+// src/controllers/alumno.controller.js
+async function listarAlumnos(req, res) {
+  const { escuelaId, rol } = req.usuario; // ← disponible gracias al middleware
+
+  // Filtrar alumnos de la escuela del usuario autenticado
+  const alumnos = await Alumno.find({ escuela: escuelaId });
+  res.json({ ok: true, data: alumnos });
+}
+```
+
+<Callout variante="warning" titulo="jwt.verify() lanza excepciones">
+  `jwt.verify()` no devuelve null cuando el token es inválido — **lanza una
+  excepción**. Por eso el código está dentro de un bloque try/catch. Olvidarlo
+  causa un crash del servidor.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Qué hace jwt.verify() si el token ha expirado?",
+      opciones: [
+        { texto: "Devuelve null" },
+        { texto: "Devuelve el payload con una bandera 'expired: true'" },
+        {
+          texto: "Lanza una excepción de tipo TokenExpiredError",
+          correcta: true,
+        },
+        { texto: "Devuelve false" },
+      ],
+      explicacion:
+        "jwt.verify() siempre lanza una excepción cuando el token es inválido o expirado. Por eso es imprescindible el bloque try/catch.",
+    },
+    {
+      pregunta:
+        "¿Por qué el middleware adjunta los datos a req.usuario en lugar de buscar el usuario en MongoDB?",
+      opciones: [
+        { texto: "Porque MongoDB no está disponible en el middleware" },
+        {
+          texto:
+            "Para evitar una consulta extra a la base de datos en cada petición — los datos ya vienen en el token",
+          correcta: true,
+        },
+        {
+          texto:
+            "Porque el id en el token no es suficiente para buscar en MongoDB",
+        },
+        { texto: "Por razones de seguridad" },
+      ],
+      explicacion:
+        "El JWT ya contiene id, rol y escuelaId. Adjuntarlos a req.usuario evita una consulta extra a MongoDB en cada petición protegida — una de las ventajas de la autenticación stateless.",
+    },
+    {
+      pregunta:
+        "¿Qué tipo de error lanza jwt.verify() cuando la firma del token es inválida (token manipulado)?",
+      opciones: [
+        { texto: "TokenExpiredError" },
+        {
+          texto:
+            "JsonWebTokenError — indica que el token fue manipulado o que la firma no coincide con la clave secreta",
+          correcta: true,
+        },
+        { texto: "InvalidSignatureError" },
+        { texto: "Un error 403 HTTP automáticamente" },
+      ],
+      explicacion:
+        "jwt.verify() puede lanzar: TokenExpiredError (el token expiró), JsonWebTokenError (token inválido/manipulado) o NotBeforeError (token usado antes de su fecha nbf). El middleware debe capturar todos y responder con 401.",
+    },
+    {
+      pregunta: "¿Cómo extrae el middleware el token del header Authorization?",
+      opciones: [
+        { texto: "req.headers.token directamente" },
+        {
+          texto:
+            "De 'Authorization: Bearer TOKEN' — se hace split por espacio y se toma el índice [1]",
+          correcta: true,
+        },
+        { texto: "De req.body.authorization" },
+        { texto: "JWT lo extrae automáticamente del header" },
+      ],
+      explicacion:
+        "El estándar HTTP Bearer: `Authorization: Bearer eyJhbGci...`. El middleware hace: `const token = req.headers.authorization?.split(' ')[1]`. La parte 'Bearer' es el esquema, el token es lo que viene después del espacio.",
+    },
+    {
+      pregunta:
+        "¿Por qué el middleware verificarToken debe ir antes que los controllers en la definición de rutas?",
+      opciones: [
+        { texto: "Por convención de estilo, no tiene efecto real" },
+        {
+          texto:
+            "Porque Express ejecuta los middlewares en orden. Si verificarToken va después del controller, la petición llegaría al controller sin autenticación",
+          correcta: true,
+        },
+        { texto: "El orden solo importa para rutas POST" },
+        {
+          texto:
+            "Porque jwt.verify() necesita que el controller se ejecute primero",
+        },
+      ],
+      explicacion:
+        "router.get('/:id', verificarToken, alumnoController.buscar) — el orden es: verificarToken primero, si pasa llama next() y se ejecuta buscar. Si verificarToken va después, buscar se ejecuta antes sin verificar el token.",
+    },
+  ]}
+/>

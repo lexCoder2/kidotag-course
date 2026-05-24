@@ -1,0 +1,113 @@
+# Funciones que si se entienden
+
+Una funcion es una mini maquina: entra algo, hace trabajo, y devuelve un resultado.
+
+```javascript
+function saludar(nombre) {
+  return `Hola, ${nombre}`;
+}
+```
+
+## Por que importan?
+
+- Reutilizas codigo.
+- Evitas copiar/pegar.
+- Tu codigo se vuelve mas ordenado.
+
+<CodePlayground
+  titulo="kidotag-utils — L3: Funciones reutilizables"
+  plantilla="vanilla"
+  soloConsola={true}
+  entryFile="/helpers.js"
+  mostrarConsola={true}
+  objetivo="Crear funciones de formato y calculo reutilizables para el modulo de utilidades de KidoTag."
+  archivos={{
+    '/index.html': { code: `<!DOCTYPE html><html lang="es"><body><p style="font-family:sans-serif;color:#94a3b8;padding:1rem">Ver consola ↓</p><script type="module" src="./index.js"></script></body></html>`, hidden: true },
+    '/config.js': { code: `export const ESCUELA = "Primaria Benito Juarez";
+export const CICLO = "2025-2026";
+export const MAX_POR_GRUPO = 35;`, readOnly: true },
+    '/asistencia.js': { code: `import { ESCUELA } from "./config.js";
+export function getEstado(p) {
+  if (p >= 90) return "Excelente";
+  if (p >= 75) return "Regular";
+  return "En riesgo";
+}
+export function imprimirReporte(alumnos) {
+  console.log("--- Reporte de " + ESCUELA + " ---");
+  for (var i = 0; i < alumnos.length; i++) {
+    console.log(
+      i +
+        1 +
+        ". " +
+        alumnos[i].nombre +
+        ": " +
+        alumnos[i].asistencia +
+        "% — " +
+        getEstado(alumnos[i].asistencia),
+    );
+  }
+}`, readOnly: true },
+    '/helpers.js': `// helpers.js — Funciones de formato y calculo (NUEVA)
+
+// Capitaliza el nombre completo: "ana garcia" -> "Ana Garcia"
+export function formatNombre(nombre) {
+  return nombre
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, function (c) {
+      return c.toUpperCase();
+    });
+}
+
+// Formatea un porcentaje: formatPorcentaje(95.5) -> "95.5%"
+export function formatPorcentaje(valor, decimales) {
+  var d = decimales === undefined ? 1 : decimales;
+  return Number(valor).toFixed(d) + "%";
+}
+
+// Calcula el promedio de un campo numerico en un array
+export function calcularPromedio(lista, campo) {
+  if (lista.length === 0) return 0;
+  var suma = lista.reduce(function (acc, item) {
+    return acc + item[campo];
+  }, 0);
+  return suma / lista.length;
+}`,
+    '/index.js': `import { formatNombre, formatPorcentaje, calcularPromedio } from "./helpers.js";
+import { imprimirReporte } from "./asistencia.js";
+
+var alumnos = [
+  { nombre: "ana garcia", asistencia: 95 },
+  { nombre: "luis mendez", asistencia: 78 },
+  { nombre: "mia torres", asistencia: 62 },
+];
+
+console.log("=== KidoTag Utils v3 ===");
+
+console.log("--- Nombres formateados ---");
+alumnos.forEach(function (a) {
+  console.log(" ", formatNombre(a.nombre));
+});
+
+console.log("--- Porcentajes ---");
+alumnos.forEach(function (a) {
+  console.log(" " + formatNombre(a.nombre) + ": " + formatPorcentaje(a.asistencia));
+});
+
+var prom = calcularPromedio(alumnos, "asistencia");
+console.log("Promedio del grupo:", formatPorcentaje(prom));
+
+imprimirReporte(alumnos);`,
+}}
+pasosIncrementales={[
+"Ejecuta y verifica que formatNombre capitaliza correctamente cada nombre.",
+"Prueba formatPorcentaje con 0 decimales: formatPorcentaje(78.3, 0) en index.js.",
+"Agrega una funcion formatGrado(grado) que devuelva 'Grado 3A' en lugar de '3A'.",
+"Agrega un campo 'faltas' a cada alumno y usa calcularPromedio para calcular el promedio de faltas.",
+]}
+retoFinal="Crea una funcion resumenGrupo(alumnos) que devuelva un objeto con: total, promedio formateado, y el nombre (formateado) del alumno con mayor asistencia. Imprimelo con console.log."
+/>
+
+<Callout variante="info" titulo="Tip rapido">
+  Si tu funcion hace muchas cosas a la vez, separala en funciones mas pequenas.
+</Callout>

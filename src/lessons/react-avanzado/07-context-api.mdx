@@ -1,0 +1,270 @@
+# Context API: estado global en React
+
+El problema de pasar props a través de múltiples niveles se llama "prop drilling".
+Context API resuelve eso proveyendo un estado accesible por cualquier componente.
+
+## ¿Cuándo usar Context?
+
+```
+Props (correcto para):         Context (correcto para):
+  datos entre padre-hijo         datos globales de la app
+  callbacks de eventos           usuario autenticado
+  configuración local            tema (dark/light)
+                                 idioma
+                                 escuelaId del usuario
+```
+
+## Crear un Context
+
+```jsx
+// src/context/EscuelaContext.jsx
+import { createContext, useContext, useState } from "react";
+
+// 1. Crear el contexto con valor por defecto
+const EscuelaContext = createContext(null);
+
+// 2. Crear el Provider
+export function EscuelaProvider({ children }) {
+  const [escuela, setEscuela] = useState(null);
+  const [grupos, setGrupos] = useState([]);
+
+  return (
+    <EscuelaContext.Provider value={{ escuela, setEscuela, grupos, setGrupos }}>
+      {children}
+    </EscuelaContext.Provider>
+  );
+}
+
+// 3. Custom hook para consumir el contexto
+export function useEscuela() {
+  const ctx = useContext(EscuelaContext);
+  if (!ctx) throw new Error("useEscuela debe usarse dentro de EscuelaProvider");
+  return ctx;
+}
+```
+
+## Usar el Context
+
+```jsx
+// src/main.jsx — envolver la app con el Provider
+import { EscuelaProvider } from "./context/EscuelaContext";
+
+<EscuelaProvider>
+  <App />
+</EscuelaProvider>;
+
+// src/components/GrupoSelector.jsx — consumir en cualquier nivel
+import { useEscuela } from "../context/EscuelaContext";
+
+function GrupoSelector() {
+  const { grupos } = useEscuela();
+  return (
+    <select>
+      {grupos.map((g) => (
+        <option key={g._id} value={g._id}>
+          {g.nombre}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+## Estructura de contextos en kidotag10
+
+```
+AuthContext     → usuario, token, login(), logout()
+EscuelaContext  → escuelaId, escuela, configuración
+```
+
+<Callout variante="warning" titulo="Context no reemplaza el estado local">
+  No pongas todo el estado en Context. Un formulario local, un modal
+  abierto/cerrado, o un dato que solo usa un componente deben seguir siendo
+  `useState` local. Context es para datos que necesitan múltiples componentes en
+  distintos niveles.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Qué problema resuelve Context API en React?",
+      opciones: [
+        { texto: "Hace los componentes más rápidos" },
+        {
+          texto:
+            "Evita prop drilling: pasar props a través de múltiples niveles de componentes intermedios que no los usan para que lleguen a un componente profundo",
+          correcta: true,
+        },
+        { texto: "Permite conectarse a MongoDB directamente desde React" },
+        { texto: "Reemplaza el uso de useEffect" },
+      ],
+      explicacion:
+        "Sin Context, para que un componente profundo acceda al usuario autenticado necesitarías pasar el prop a través de App → Dashboard → Panel → ListaAlumnos → AlumnoCard. Con Context, cualquier componente consume el contexto directamente.",
+    },
+    {
+      pregunta: "¿Cómo se crea y proporciona un contexto en React?",
+      opciones: [
+        { texto: "Importando un módulo especial de React llamado Context" },
+        {
+          texto:
+            "Con createContext() para crear el contexto y un componente Provider con value={...} que envuelve el árbol de componentes",
+          correcta: true,
+        },
+        { texto: "Con useGlobalState() hook" },
+        { texto: "Agregando un archivo context.json en el proyecto" },
+      ],
+      explicacion:
+        "const AuthContext = createContext(null); y luego AuthContext.Provider con value={{ usuario, login, logout }}. Cualquier componente descendiente puede usar useContext(AuthContext) para acceder al valor.",
+    },
+    {
+      pregunta:
+        "¿Qué sucede cuando el value del Provider cambia en el AuthContext de kidotag?",
+      opciones: [
+        { texto: "Solo se re-renderiza el Provider" },
+        {
+          texto:
+            "Todos los componentes que consumen ese contexto con useContext se re-renderizan automáticamente",
+          correcta: true,
+        },
+        { texto: "El contexto solo actualiza al recargar la página" },
+        { texto: "Solo se actualiza el componente que llamó al setter" },
+      ],
+      explicacion:
+        "Cuando el usuario hace login en kidotag y el estado del AuthContext cambia (setUsuario), todos los componentes que usan useContext(AuthContext) — el Navbar, el PrivateRoute, el Dashboard — reciben el nuevo valor y se re-renderizan.",
+    },
+    {
+      pregunta: "¿Cuándo NO deberías usar Context API para manejar estado?",
+      opciones: [
+        { texto: "Nunca — Context siempre es la mejor solución" },
+        {
+          texto:
+            "Para estado local de un componente, o cuando los updates son frecuentes (listas que cambian mucho), ya que Context causa re-renders en todos los consumidores",
+          correcta: true,
+        },
+        { texto: "Context no puede usarse con hooks" },
+        { texto: "Context solo funciona con strings y números" },
+      ],
+      explicacion:
+        "En kidotag, el AuthContext es ideal (cambia poco: login/logout). Pero la lista de alumnos que se filtra en tiempo real debería estar en useState local del Dashboard — no en Context, para no re-renderizar toda la app en cada keystroke del filtro.",
+    },
+  ]}
+/>
+
+## Practica: contexto de escuela
+
+<CodePlayground
+  titulo="Context API — datos globales de escuela"
+  codigo={`import { createContext, useContext, useState } from "react";
+
+// 1. Crear el contexto
+const EscuelaCtx = createContext(null);
+
+// 2. Proveedor del contexto
+function EscuelaProvider({ children }) {
+  const [escuela, setEscuela] = useState({
+    nombre: "Primaria Juárez",
+    alumnosActivos: 234,
+    gruposActivos: 8,
+  });
+
+  function actualizarNombre(nuevoNombre) {
+    setEscuela((prev) => ({ ...prev, nombre: nuevoNombre }));
+  }
+
+  return (
+    <EscuelaCtx.Provider value={{ escuela, actualizarNombre }}>{children}</EscuelaCtx.Provider>
+  );
+}
+
+// 3. Consumidor (cualquier nivel de profundidad)
+function Header() {
+  const { escuela } = useContext(EscuelaCtx);
+  return (
+    <header
+      style={{
+        background: "#274c77",
+        color: "#fff",
+        padding: "12px 16px",
+        borderRadius: "8px 8px 0 0",
+      }}
+    >
+      <h2 style={{ margin: 0 }}>📚 {escuela.nombre}</h2>
+    </header>
+  );
+}
+
+function Stats() {
+  const { escuela } = useContext(EscuelaCtx);
+  return (
+    <div style={{ display: "flex", gap: 12, padding: "12px 16px", background: "#f8fafc" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 24, fontWeight: 700 }}>{escuela.alumnosActivos}</div>
+        <div style={{ fontSize: 12, color: "#64748b" }}>Alumnos</div>
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 24, fontWeight: 700 }}>{escuela.gruposActivos}</div>
+        <div style={{ fontSize: 12, color: "#64748b" }}>Grupos</div>
+      </div>
+    </div>
+  );
+}
+
+function EditorNombre() {
+  const { escuela, actualizarNombre } = useContext(EscuelaCtx);
+  const [val, setVal] = useState(escuela.nombre);
+  return (
+    <div style={{ padding: "12px 16px", background: "#fff", borderTop: "1px solid #e2e8f0" }}>
+      <label style={{ fontSize: 13, color: "#64748b" }}>Cambiar nombre de la escuela:</label>
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+        <input
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          style={{
+            flex: 1,
+            padding: "6px 10px",
+            border: "1px solid #cbd5e1",
+            borderRadius: 6,
+            fontFamily: "sans-serif",
+          }}
+        />
+        <button
+          onClick={() => actualizarNombre(val)}
+          style={{
+            padding: "6px 14px",
+            background: "#274c77",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          Guardar
+        </button>
+      </div>
+      <p style={{ fontSize: 12, color: "#64748b", marginTop: 8 }}>
+        Header y Stats se actualizan sin pasar props.
+      </p>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <EscuelaProvider>
+      <div
+        style={{
+          fontFamily: "sans-serif",
+          border: "1px solid #e2e8f0",
+          borderRadius: 8,
+          overflow: "hidden",
+          maxWidth: 360,
+        }}
+      >
+        <Header />
+        <Stats />
+        <EditorNombre />
+      </div>
+    </EscuelaProvider>
+  );
+}`}
+/>

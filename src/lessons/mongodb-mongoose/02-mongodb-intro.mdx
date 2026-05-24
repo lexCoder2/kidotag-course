@@ -1,0 +1,309 @@
+# MongoDB: documentos y colecciones
+
+<LibCard
+  nombre="mongoose"
+  version="9.1.4"
+  npm="mongoose"
+  categoria="database"
+  docs="https://mongoosejs.com/"
+  descripcion="ODM (Object Document Mapper) para MongoDB en Node.js. Define schemas con tipos y validaciones, abstrae queries y soporta hooks, populate y plugins."
+  porque="MongoDB es flexible por naturaleza, pero esa flexibilidad puede llevar a datos inconsistentes. Mongoose impone estructura mediante schemas, valida automáticamente y ofrece una API orientada a promesas muy cómoda."
+  usoEjemplo={`// src/config/database.js de kidotag10
+const mongoose = require('mongoose');
+
+async function conectarDB() {
+await mongoose.connect(process.env.MONGODB_URI);
+console.log('MongoDB conectado');
+}
+
+module.exports = { conectarDB };`}
+alternativas={[
+{ nombre: "MongoDB Driver nativo", porque_no: "Sin schemas ni validaciones automáticas. Requiere validar cada campo manualmente." },
+{ nombre: "Prisma (con MongoDB)", porque_no: "Soporte MongoDB aún experimental en Prisma. No tan maduro como mongoose." },
+]}
+/>
+
+**MongoDB** es la base de datos que usa kidotag10. En lugar de tablas con filas y columnas, almacena **documentos** JSON en **colecciones**.
+
+## SQL vs MongoDB
+
+| SQL (relacional)  | MongoDB (documental) |
+| ----------------- | -------------------- |
+| Base de datos     | Base de datos        |
+| Tabla             | Colección            |
+| Fila              | Documento            |
+| Columna           | Campo                |
+| JOIN entre tablas | populate() o embed   |
+| Schema rígido     | Schema flexible      |
+
+## Documentos BSON
+
+```json
+// Documento Alumno en kidotag10
+{
+  "_id": "ObjectId('64ab12...7f')", // ID único generado por MongoDB
+  "nombre": "Ana García",
+  "matricula": "2024-001",
+  "grado": "3A",
+  "activo": true,
+  "tags": ["nfc-registrado", "beca"], // Arrays son nativos
+  "tutor": "ObjectId('64cd...')", // Referencia a otro documento
+  "contacto": {
+    // Subdocumento embebido
+    "telefono": "555-1234",
+    "email": "papa@email.com"
+  },
+  "createdAt": "2024-01-15T10:30:00Z"
+}
+```
+
+<Mermaid
+  titulo="Colecciones y relaciones en kidotag10"
+  diagrama={`erDiagram
+  Alumno {
+    ObjectId _id
+    string nombre
+    string matricula
+    ObjectId grupoId
+    ObjectId tutorId
+  }
+  Grupo {
+    ObjectId _id
+    string nombre
+    string grado
+    ObjectId profesorId
+  }
+  Tutor {
+    ObjectId _id
+    string nombre
+    string email
+    string passwordHash
+  }
+  Asistencia {
+    ObjectId _id
+    ObjectId alumnoId
+    string tipo
+    date timestamp
+  }
+  Alumno }o--|| Grupo : "pertenece a"
+  Alumno }o--|| Tutor : "tiene"
+  Alumno ||--o{ Asistencia : "registra"`}
+/>
+
+## Por qué MongoDB para kidotag10
+
+**Un registro de asistencia en SQL** requeriría 3 tablas + JOINs. En MongoDB, un documento puede guardar todo lo necesario para una consulta de asistencia:
+
+```json
+// MongoDB — un solo documento con toda la info
+{
+  "_id": "...",
+  "alumno": {
+    "nombre": "Ana García",
+    "grado": "3A",
+    "uid_nfc": "04:AB:CD:12:34"
+  },
+  "tipo": "entrada",
+  "timestamp": "2024-01-15T08:05:00Z",
+  "escuela": "Demo Primaria"
+}
+```
+
+<CodePlayground
+  titulo="Documentos MongoDB: trabajar con JSON"
+  archivos={{
+    '/App.jsx': `import { useState } from "react";
+
+// Simulación de colecciones MongoDB
+const colecciones = {
+  alumnos: [
+    { _id: "64ab001", nombre: "Ana García", grado: "3A", activo: true },
+    { _id: "64ab002", nombre: "Luis Pérez", grado: "2B", activo: true },
+    { _id: "64ab003", nombre: "Sara Ríos", grado: "3A", activo: false },
+  ],
+  asistencias: [
+    {
+      _id: "64cd001",
+      alumnoId: "64ab001",
+      tipo: "entrada",
+      timestamp: new Date("2024-01-15T08:01"),
+    },
+    {
+      _id: "64cd002",
+      alumnoId: "64ab001",
+      tipo: "salida",
+      timestamp: new Date("2024-01-15T13:30"),
+    },
+    {
+      _id: "64cd003",
+      alumnoId: "64ab002",
+      tipo: "entrada",
+      timestamp: new Date("2024-01-15T08:05"),
+    },
+  ],
+};
+
+// Simulamos operaciones de MongoDB
+function find(coleccion, filtro = {}) {
+  return coleccion.filter((doc) => Object.entries(filtro).every(([k, v]) => doc[k] === v));
+}
+
+function findOne(coleccion, filtro) {
+  return coleccion.find((doc) => Object.entries(filtro).every(([k, v]) => doc[k] === v));
+}
+
+export default function App() {
+  const [resultado, setResultado] = useState(null);
+  const [consulta, setConsulta] = useState("");
+
+  const ejemplos = [
+    {
+      label: 'find({ grado: "3A" })',
+      fn: () => find(colecciones.alumnos, { grado: "3A" }),
+    },
+    {
+      label: "find({ activo: true })",
+      fn: () => find(colecciones.alumnos, { activo: true }),
+    },
+    {
+      label: 'findOne({ _id: "64ab001" })',
+      fn: () => findOne(colecciones.alumnos, { _id: "64ab001" }),
+    },
+    {
+      label: 'find asistencias alumno "64ab001"',
+      fn: () => find(colecciones.asistencias, { alumnoId: "64ab001" }),
+    },
+    {
+      label: "find todos los alumnos",
+      fn: () => find(colecciones.alumnos),
+    },
+  ];
+
+  return (
+    <div style={{ fontFamily: "monospace", padding: "1.5rem", maxWidth: 500 }}>
+      <h2 style={{ fontFamily: "sans-serif" }}>🍃 Explorador MongoDB</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {ejemplos.map(({ label, fn }) => (
+          <button
+            key={label}
+            onClick={() => {
+              setConsulta(label);
+              setResultado(fn());
+            }}
+            style={{
+              background: "#1a1e2e",
+              color: "#7dd3fc",
+              border: "none",
+              padding: "8px 12px",
+              borderRadius: 6,
+              cursor: "pointer",
+              textAlign: "left",
+              fontSize: 13,
+            }}
+          >
+            db.{label}
+          </button>
+        ))}
+      </div>
+      {resultado !== null && (
+        <div style={{ marginTop: "1rem" }}>
+          <p
+            style={{ fontFamily: "sans-serif", fontSize: 13, color: "#64748b", margin: "0 0 6px" }}
+          >
+            Resultado: db.{consulta}
+          </p>
+          <pre
+            style={{
+              background: "#0f172a",
+              color: "#86efac",
+              padding: "1rem",
+              borderRadius: 8,
+              overflow: "auto",
+              fontSize: 12,
+            }}
+          >
+            {JSON.stringify(resultado, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}`,
+}}
+/>
+
+<Callout variante="kidotag" titulo="En kidotag10/api — src/config/database.js">
+  La conexión a MongoDB se configura en `src/config/database.js` usando
+  `mongoose.connect(process.env.MONGO_URI)`. La URI viene del archivo `.env` y
+  puede apuntar a MongoDB local (`mongodb://localhost:27017/kidotag`) o a
+  MongoDB Atlas en producción.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Qué es un ObjectId en MongoDB?",
+      opciones: [
+        { texto: "Un número entero autoincremental como en SQL" },
+        {
+          texto:
+            "Un identificador único de 12 bytes generado automáticamente por MongoDB",
+          correcta: true,
+        },
+        { texto: "Un UUID estándar en formato string" },
+      ],
+      explicacion:
+        "ObjectId es un valor de 12 bytes que incluye timestamp, ID de máquina y un contador. Se genera automáticamente para _id si no lo especificas.",
+    },
+    {
+      pregunta:
+        "¿Cuál es la ventaja de embeber un subdocumento vs usar una referencia?",
+      opciones: [
+        { texto: "Embeber siempre es mejor — reduce el número de colecciones" },
+        {
+          texto:
+            "Embeber evita un query extra al leer, pero dificulta actualizar datos compartidos",
+          correcta: true,
+        },
+        { texto: "Las referencias son más rápidas que los subdocumentos" },
+      ],
+      explicacion:
+        "Embeber (subdocumento) significa que los datos viven dentro del documento padre: leer es rápido pero actualizar requiere modificar cada documento que lo contiene. Las referencias (ObjectId) son mejores para datos compartidos que cambian frecuentemente.",
+    },
+    {
+      pregunta:
+        "¿Por qué MongoDB puede ser ventajoso sobre SQL para el registro de asistencias en KidoTag?",
+      opciones: [
+        { texto: "Porque MongoDB es gratis y SQL es de pago" },
+        {
+          texto:
+            "Porque un documento de asistencia puede incluir datos denormalizados del alumno sin JOINs, ideal para lectura rápida de reportes",
+          correcta: true,
+        },
+        { texto: "Porque SQL no soporta campos de fecha" },
+        {
+          texto:
+            "MongoDB es siempre más rápido que cualquier base de datos SQL",
+        },
+      ],
+      explicacion:
+        "En un reporte de asistencia, puedes guardar nombre y grupo del alumno directamente en el documento de asistencia. Sin embargo, si el alumno cambia de grupo, los registros históricos siguen mostrando el grupo anterior — que puede ser justamente lo que quieres en un historial.",
+    },
+    {
+      pregunta:
+        "¿Qué límite de tamaño tiene un documento MongoDB y cómo afecta al diseño de KidoTag?",
+      opciones: [
+        { texto: "1 MB por documento" },
+        {
+          texto:
+            "16 MB por documento — limita cuántos subdocumentos se pueden embeber (ej: no guardar todas las asistencias de un alumno embebidas)",
+          correcta: true,
+        },
+        { texto: "Sin límite de tamaño" },
+        { texto: "10 MB por coleccion" },
+      ],
+      explicacion:
+        "Con el límite de 16 MB, embeber las asistencias del alumno en su documento sería problemático a largo plazo (un alumno puede tener cientos de registros). Por eso KidoTag tiene una coleccion Asistencia separada con referencia al alumno.",
+    },
+  ]}
+/>

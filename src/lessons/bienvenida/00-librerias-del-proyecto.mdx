@@ -1,0 +1,515 @@
+# Librerías del proyecto: ¿por qué cada una?
+
+En kidotag10 hay **15 dependencias de producción** (sin contar devDependencies).
+Cada una fue elegida por alguna razón concreta.  
+Esta lección te muestra **qué hace cada librería, por qué se eligió** y qué alternativas existían.
+
+<Callout variante="tip" titulo="¿Cómo leer esta lección?">
+  Haz clic en **"Alternativas consideradas"** dentro de cada tarjeta para ver la
+  tabla comparativa. Luego, cuando llegues a la lección específica de esa
+  tecnología, ya tendrás el contexto.
+</Callout>
+
+---
+
+## 🖥️ Backend (`api/package.json`)
+
+<LibCard
+  nombre="express"
+  version="5.2.1"
+  npm="express"
+  categoria="backend"
+  docs="https://expressjs.com/"
+  descripcion="Framework web minimalista para Node.js. Gestiona rutas HTTP, middlewares y el ciclo de vida de la petición/respuesta."
+  porque="Es el framework más maduro del ecosistema Node.js con millones de descargas semanales. Su diseño minimalista y su ecosistema de middlewares lo hacen ideal para proyectos de todo tamaño. La versión 5 añade soporte nativo a async/await sin necesidad de wrappers."
+  usoEjemplo={`// src/app.js de kidotag10
+const express = require('express');
+const app = express();
+
+app.use(express.json()); // middleware global
+app.use('/api/alumnos', alumnoRoutes);
+app.use('/api/auth', authRoutes);
+
+module.exports = app;`}
+alternativas={[
+{ nombre: "Fastify", porque_no: "Excelente rendimiento, pero requiere más configuración inicial y tiene menos plugins disponibles para funcionalidades como Swagger." },
+{ nombre: "Koa", porque_no: "Creado por el mismo equipo de Express, más moderno, pero ecosistema más pequeño y curva de aprendizaje adicional." },
+{ nombre: "NestJS", porque_no: "Framework opinionado y empresarial. Excelente para equipos grandes, pero demasiado complejo para un proyecto educativo o de tamaño mediano." },
+]}
+/>
+
+<LibCard
+  nombre="mongoose"
+  version="9.1.4"
+  npm="mongoose"
+  categoria="database"
+  docs="https://mongoosejs.com/"
+  descripcion="ODM (Object Document Mapper) para MongoDB. Permite definir schemas con tipos y validadores, y abstrae las operaciones de la base de datos."
+  porque="Añade una capa de estructura sobre MongoDB que evita inconsistencias en los datos. Sus schemas con validaciones, los hooks pre/post y el método populate() para joins hacen mucho más manejable una API REST con relaciones entre colecciones."
+  usoEjemplo={`// src/models/alumno.model.js de kidotag10
+const mongoose = require('mongoose');
+
+const alumnoSchema = new mongoose.Schema({
+nombre: { type: String, required: true, trim: true },
+uid_nfc: { type: String, unique: true },
+tutor: { type: mongoose.Schema.Types.ObjectId, ref: 'Tutor' },
+}, { timestamps: true });
+
+module.exports = mongoose.model('Alumno', alumnoSchema);`}
+alternativas={[
+{ nombre: "MongoDB Driver nativo", porque_no: "Más control, pero sin schemas ni validación automática. Requiere validar manualmente cada campo." },
+{ nombre: "Prisma (con MongoDB)", porque_no: "Prisma es fantástico con SQL, pero el soporte MongoDB es limitado y aún experimental." },
+{ nombre: "TypeORM", porque_no: "Orientado a SQL. Tiene soporte MongoDB, pero no es su caso de uso principal." },
+]}
+/>
+
+<LibCard
+  nombre="jsonwebtoken"
+  version="9.0.2"
+  npm="jsonwebtoken"
+  categoria="auth"
+  docs="https://github.com/auth0/node-jsonwebtoken"
+  descripcion="Implementación de JSON Web Tokens (JWT) para Node.js. Permite firmar y verificar tokens para autenticación sin estado."
+  porque="Los JWT permiten autenticación stateless: el servidor no necesita almacenar sesiones. El token viaja en el header de cada petición y puede ser verificado criptográficamente. Es el estándar de facto para APIs REST."
+  usoEjemplo={`// src/controllers/auth.controller.js de kidotag10
+const jwt = require('jsonwebtoken');
+
+// Emitir token al hacer login
+const token = jwt.sign(
+{ id: usuario.\_id, rol: usuario.rol },
+process.env.JWT_SECRET,
+{ expiresIn: '7d' }
+);
+
+// Verificar en el middleware
+const decoded = jwt.verify(token, process.env.JWT_SECRET);
+// decoded.id, decoded.rol disponibles`}
+alternativas={[
+{ nombre: "Passport.js", porque_no: "Librería de estrategias de autenticación. Útil para OAuth/SAML, pero añade complejidad innecesaria cuando sólo se necesita JWT." },
+{ nombre: "jose (jose-node-esm)", porque_no: "Más moderno y seguro, soporta JWK. Para kidotag10, jsonwebtoken es suficiente y más sencillo." },
+{ nombre: "Sesiones con express-session", porque_no: "Requiere almacén de sesiones (Redis/MongoDB). Los JWT evitan esa infraestructura adicional." },
+]}
+/>
+
+<LibCard
+  nombre="bcryptjs"
+  version="2.4.3"
+  npm="bcryptjs"
+  categoria="auth"
+  docs="https://github.com/dcodeIO/bcrypt.js"
+  descripcion="Implementación pura en JavaScript del algoritmo bcrypt para hashear contraseñas de forma segura."
+  porque="Nunca se guardan contraseñas en texto plano. bcrypt aplica un salt aleatorio y un factor de costo (rounds) que hace que calcular el hash sea lento por diseño — dificultando ataques de fuerza bruta."
+  usoEjemplo={`// src/models/tutor.model.js de kidotag10 (hook pre-save)
+const bcrypt = require('bcryptjs');
+
+tutorSchema.pre('save', async function(next) {
+if (!this.isModified('password')) return next();
+this.password = await bcrypt.hash(this.password, 10); // 10 rounds
+next();
+});
+
+// Verificar en login
+const match = await bcrypt.compare(passwordIngresado, tutor.password);`}
+alternativas={[
+{ nombre: "bcrypt (nativo)", porque_no: "Requiere compilar código nativo C++. bcryptjs es JS puro, lo que facilita el despliegue en cualquier plataforma." },
+{ nombre: "argon2", porque_no: "Más moderno y resistente a GPU attacks. Para producción seria sería la mejor opción, pero requiere compilación nativa." },
+{ nombre: "crypto (Node.js built-in)", porque_no: "SHA/PBKDF2 son mucho más rápidos — eso es un problema para passwords. Bcrypt es lento por diseño." },
+]}
+/>
+
+<LibCard
+  nombre="cors"
+  version="2.8.5"
+  npm="cors"
+  categoria="backend"
+  docs="https://github.com/expressjs/cors"
+  descripcion="Middleware Express para configurar cabeceras CORS (Cross-Origin Resource Sharing). Controla qué orígenes pueden llamar a la API."
+  porque="Los navegadores bloquean peticiones cross-origin por seguridad. Cuando el frontend (localhost:5173 / tu dominio) llama a la API (localhost:4000), CORS debe estar configurado explícitamente para que el navegador permita la petición."
+  usoEjemplo={`// src/app.js de kidotag10
+const cors = require('cors');
+
+app.use(cors({
+origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+credentials: true, // permite cookies / Authorization header
+methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+}));`}
+alternativas={[
+{ nombre: "Configurar cabeceras manualmente", porque_no: "Posible, pero propenso a errores. El paquete cors gestiona preflight (OPTIONS) automáticamente." },
+{ nombre: "Proxy de Vite en desarrollo", porque_no: "Válido para evitar CORS en dev, pero no soluciona el problema en producción." },
+]}
+/>
+
+<LibCard
+  nombre="dotenv"
+  version="17.2.3"
+  npm="dotenv"
+  categoria="devtools"
+  docs="https://github.com/motdotla/dotenv"
+  descripcion="Carga variables de entorno desde un archivo .env a process.env. Implementa el principio 12-factor de configuración."
+  porque="Las credenciales (contraseñas de DB, secrets JWT) jamás deben estar hardcodeadas en el código fuente. dotenv separa la configuración del código y evita que esos valores lleguen a un repositorio público."
+  usoEjemplo={`// src/index.js de kidotag10 — PRIMERA línea
+require('dotenv').config();
+
+// Ahora disponibles en cualquier archivo:
+const uri = process.env.MONGODB_URI;
+const secret = process.env.JWT_SECRET;
+const port = process.env.PORT || 4000;
+
+// .env (nunca subir a git)
+// MONGODB_URI=mongodb://localhost:27017/kidotag
+// JWT_SECRET=supersecreto_cambiar_en_produccion`}
+alternativas={[
+{ nombre: "Variables de entorno del SO", porque_no: "Válido en producción (Heroku, Railway, etc.), pero incómodo en desarrollo local." },
+{ nombre: "dotenv-flow / dotenv-expand", porque_no: "Extensiones de dotenv para múltiples entornos. kidotag10 usa dotenv básico que es suficiente." },
+]}
+/>
+
+<LibCard
+  nombre="socket.io"
+  version="4.7.2"
+  npm="socket.io"
+  categoria="backend"
+  docs="https://socket.io/docs/v4/"
+  descripcion="Librería de comunicación bidireccional en tiempo real. Usa WebSockets con fallback automático a HTTP long-polling."
+  porque="En kidotag10, la asistencia se registra cuando el alumno toca el lector NFC (ESP32). Ese evento debe llegar al dashboard del profesor en tiempo real — sin que el cliente tenga que hacer polling. Socket.IO es la solución estándar para esto."
+  usoEjemplo={`// src/index.js de kidotag10
+const { Server } = require('socket.io');
+const io = new Server(server, {
+  cors: { origin: process.env.FRONTEND_URL }
+});
+
+io.on('connection', (socket) => {
+socket.join(\`escuela:\${socket.handshake.query.escuelaId}\`);
+});
+
+// Desde el controlador de asistencia:
+io.to(\`escuela:\${escuelaId}\`).emit('asistencia:nueva', registro);`}
+alternativas={[
+{ nombre: "WebSockets nativas (ws)", porque_no: "Más bajo nivel. Sin reconexión automática, sin rooms, sin fallback. socket.io lo envuelve todo." },
+{ nombre: "Server-Sent Events (SSE)", porque_no: "Unidireccional (servidor → cliente). No sirve para el flujo del ESP32 que también envía datos." },
+{ nombre: "Ably / Pusher", porque_no: "Servicios SaaS. No requieren infraestructura, pero tienen coste y dependencia de terceros." },
+]}
+/>
+
+<LibCard
+  nombre="swagger-jsdoc"
+  version="6.2.8"
+  npm="swagger-jsdoc"
+  categoria="devtools"
+  docs="https://github.com/Surnet/swagger-jsdoc"
+  descripcion="Genera un spec OpenAPI 3.0 a partir de comentarios JSDoc en el código fuente. Documentación como código."
+  porque="Mantener la documentación separada del código es propenso a que quede desactualizada. Con swagger-jsdoc, los comentarios VIVEN junto a las rutas — si cambias un endpoint, cambias su doc en el mismo archivo."
+  usoEjemplo={`// src/routes/auth.routes.js de kidotag10
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Login unificado para todos los roles
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginInput'
+ */
+router.post('/login', loginUnificado);`}
+  alternativas={[
+    {
+      nombre: "spec YAML escrito a mano",
+      porque_no:
+        "Más limpio pero se desincroniza del código. Un endpoint que cambia no actualiza automáticamente el YAML.",
+    },
+    {
+      nombre: "tsoa (TypeScript)",
+      porque_no:
+        "Genera spec desde decoradores TypeScript. kidotag10 usa JavaScript plano.",
+    },
+    {
+      nombre: "Postman Collections",
+      porque_no:
+        "Útil para testing pero no es una especificación estándar exportable.",
+    },
+  ]}
+/>
+
+<LibCard
+  nombre="xlsx"
+  version="0.18.5"
+  npm="xlsx"
+  categoria="backend"
+  docs="https://docs.sheetjs.com/"
+  descripcion="Librería para leer y escribir archivos Excel (.xlsx, .xls, .csv) desde Node.js, sin depender de Excel instalado."
+  porque="kidotag10 genera reportes de asistencia en Excel que los directores pueden descargar. xlsx permite crear esos archivos en el servidor y enviarlos como descarga directa."
+  usoEjemplo={`// src/controllers/asistencia.controller.js de kidotag10
+const XLSX = require('xlsx');
+
+const wb = XLSX.utils.book_new();
+const ws = XLSX.utils.json_to_sheet(registros.map(r => ({
+Alumno: r.alumno.nombre,
+Fecha: r.fecha.toLocaleDateString('es-MX'),
+Estado: r.presente ? 'Presente' : 'Ausente',
+})));
+XLSX.utils.book_append_sheet(wb, ws, 'Asistencia');
+const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+res.send(buffer);`}
+alternativas={[
+{ nombre: "exceljs", porque_no: "API más moderna y con mejor soporte de estilos. Para un MVP, xlsx es suficientemente sencillo." },
+{ nombre: "CSV manual", porque_no: "Más simple, pero los usuarios esperan Excel. Los directores usan Excel, no CSV." },
+{ nombre: "pdfkit / puppeteer (PDF)", porque_no: "Mejor para documentos formateados, pero más peso y complejidad para reportes tabulares." },
+]}
+/>
+
+---
+
+## 🌐 Frontend (`web/package.json`)
+
+<LibCard
+  nombre="react"
+  version="18.2.0"
+  npm="react"
+  categoria="frontend"
+  docs="https://react.dev/"
+  descripcion="Librería de UI basada en componentes. Gestiona el renderizado eficiente con Virtual DOM y el estado de la interfaz."
+  porque="React es el estándar de la industria para UIs complejas. Su modelo de componentes hace que la UI de kidotag10 (dashboard, formularios, listas de alumnos) sea mantenible y reutilizable."
+  usoEjemplo={`// web/src/components/TarjetaAlumno.jsx de kidotag10
+import { useState } from 'react';
+
+function TarjetaAlumno({ alumno, onEditar }) {
+const [expandida, setExpandida] = useState(false);
+return (
+
+<div className="tarjeta-alumno">
+<h3>{alumno.nombre}</h3>
+<button onClick={() => setExpandida(!expandida)}>
+{expandida ? 'Ocultar' : 'Ver detalles'}
+</button>
+{expandida && <p>NFC: {alumno.uid_nfc}</p>}
+</div>
+);
+}`}
+alternativas={[
+{ nombre: "Vue 3", porque_no: "Excelente alternativa. Curva de aprendizaje similar, pero React tiene más demanda laboral y ecosistema más grande." },
+{ nombre: "Svelte / SvelteKit", porque_no: "Compilado, sin Virtual DOM, mejor rendimiento teórico. Pero ecosistema más pequeño y menos empleos disponibles." },
+{ nombre: "Angular", porque_no: "Framework completo de Google. Demasiado verboso para un proyecto de tamaño mediano." },
+]}
+/>
+
+<LibCard
+  nombre="react-router-dom"
+  version="6.22.0"
+  npm="react-router-dom"
+  categoria="frontend"
+  docs="https://reactrouter.com/"
+  descripcion="Librería de enrutamiento para React. Maneja la navegación del lado del cliente en SPAs (Single Page Applications)."
+  porque="kidotag10-web es una SPA con múltiples vistas: login, dashboard, lista de alumnos, perfil, etc. react-router-dom v6 permite definir rutas protegidas, rutas anidadas y navegación programática de forma declarativa."
+  usoEjemplo={`// web/src/App.jsx de kidotag10
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
+function App() {
+return (
+
+<BrowserRouter>
+<Routes>
+<Route path="/login" element={<Login />} />
+<Route path="/dashboard" element={
+<RutaProtegida rol="profesor">
+<Dashboard />
+</RutaProtegida>
+} />
+<Route path="/" element={<Navigate to="/dashboard" />} />
+</Routes>
+</BrowserRouter>
+);
+}`}
+alternativas={[
+{ nombre: "TanStack Router", porque_no: "Más moderno con type-safety nativa. Excelente para proyectos TypeScript, pero más complejo de configurar." },
+{ nombre: "Wouter", porque_no: "Más pequeño y simple. Carece de rutas anidadas y lazy loading nativo que react-router v6 incluye." },
+]}
+/>
+
+<LibCard
+  nombre="socket.io-client"
+  version="4.7.2"
+  npm="socket.io-client"
+  categoria="frontend"
+  docs="https://socket.io/docs/v4/client-api/"
+  descripcion="Cliente JavaScript de Socket.IO. Se conecta al servidor socket.io y permite emitir y escuchar eventos en tiempo real."
+  porque="Es el par del socket.io del backend. Cuando el ESP32 registra una asistencia, el servidor emite un evento que llega al cliente React en milisegundos — sin polling, sin recargar la página."
+  usoEjemplo={`// web/src/hooks/useAsistenciaRealTime.js de kidotag10
+import { useEffect } from 'react';
+import { io } from 'socket.io-client';
+
+export function useAsistenciaRealTime(escuelaId, onNueva) {
+  useEffect(() => {
+    const socket = io(import.meta.env.VITE_API_URL, {
+      query: { escuelaId }
+    });
+    socket.on('asistencia:nueva', onNueva);
+    return () => socket.disconnect(); // cleanup
+  }, [escuelaId]);
+}`}
+  alternativas={[
+    { nombre: "WebSocket nativo (new WebSocket())", porque_no: "Sin reconexión automática, sin eventos con nombre, sin rooms. socket.io-client añade todo eso." },
+    { nombre: "EventSource (SSE)", porque_no: "Sólo recibe datos del servidor. No permite emitir desde el cliente." },
+  ]}
+/>
+
+<LibCard
+  nombre="vite"
+  version="5.1.0"
+  npm="vite"
+  categoria="devtools"
+  docs="https://vitejs.dev/"
+  descripcion="Herramienta de build ultrarrápida para proyectos frontend. Usa esbuild en desarrollo (HMR instantáneo) y Rollup para producción."
+  porque="Vite arranca en menos de 1 segundo (vs 10-30s de webpack). Su HMR (Hot Module Replacement) actualiza el componente exacto que cambias sin recargar la página — imprescindible para desarrollo ágil."
+  usoEjemplo={`// web/vite.config.js de kidotag10
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': 'http://localhost:4000', // evita CORS en desarrollo
+    },
+  },
+  build: {
+    outDir: 'dist',
+  },
+});`}
+  alternativas={[
+    { nombre: "Create React App (webpack)", porque_no: "Lento, en modo mantenimiento. Ya no es recomendado por el equipo de React." },
+    { nombre: "Next.js", porque_no: "Framework completo con SSR/SSG. kidotag10-web es una SPA pura que no necesita renderizado en servidor." },
+    { nombre: "Parcel", porque_no: "Zero-config, fácil de empezar, pero menos ecosistema y plugins que Vite." },
+  ]}
+/>
+
+---
+
+## 🛠️ Dev Dependencies
+
+<LibCard
+  nombre="nodemon"
+  version="3.1.11"
+  npm="nodemon"
+  categoria="devtools"
+  docs="https://nodemon.io/"
+  descripcion="Monitorea cambios en archivos Node.js y reinicia automáticamente el servidor durante el desarrollo."
+  porque="Sin nodemon, cada vez que modificas un archivo del backend tienes que matar el proceso y re-ejecutar node. Con nodemon, el servidor se reinicia solo al guardar — ahorrando cientos de interrupciones al día."
+  usoEjemplo={`// package.json del api de kidotag10
+{
+  "scripts": {
+    "dev": "nodemon src/index.js",  // ← reinicia al cambiar archivos
+    "start": "node src/index.js"   // ← producción (sin nodemon)
+  }
+}
+
+// nodemon.json (opcional)
+{
+"watch": ["src"],
+"ext": "js,json",
+"ignore": ["src/**/*.test.js"]
+}`}
+alternativas={[
+{ nombre: "node --watch (Node 18+)", porque_no: "Opción nativa de Node.js, sin instalar nada. Para proyectos simples es suficiente, pero nodemon tiene más opciones de configuración." },
+{ nombre: "tsx --watch (TypeScript)", porque_no: "Para proyectos TypeScript. kidotag10 API usa JavaScript." },
+]}
+/>
+
+---
+
+<Callout variante="kidotag" titulo="¿Cuándo profundizamos en cada una?">
+  Cada librería tiene su propia lección o sección dedicada en el curso. Cuando
+  llegues a ese bloque, ya sabrás **por qué** está ahí antes de ver **cómo**
+  funciona en detalle.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué kidotag10 usa bcryptjs en lugar del módulo crypto nativo de Node.js para guardar passwords?",
+      opciones: [
+        {
+          texto:
+            "Porque crypto no está disponible en todas las versiones de Node",
+        },
+        {
+          texto:
+            "Porque bcrypt es intencionalmente lento, lo que dificulta ataques de fuerza bruta",
+          correcta: true,
+        },
+        {
+          texto:
+            "Porque bcryptjs genera hashes más cortos y ocupa menos espacio en la base de datos",
+        },
+        { texto: "Porque crypto no puede generar hashes" },
+      ],
+      explicacion:
+        "El diseño lento de bcrypt (rounds) es una característica, no un defecto. Hace que probar millones de passwords por segundo sea computacionalmente inviable.",
+    },
+    {
+      pregunta: "¿Para qué se usa Socket.IO en kidotag10?",
+      opciones: [
+        { texto: "Para manejar la autenticación de usuarios" },
+        { texto: "Para generar reportes Excel" },
+        {
+          texto:
+            "Para enviar la asistencia registrada por el ESP32 al dashboard en tiempo real",
+          correcta: true,
+        },
+        { texto: "Para conectarse a la base de datos MongoDB" },
+      ],
+      explicacion:
+        "El lector NFC (ESP32) envía datos al servidor, que los guarda y reenvía via Socket.IO a los clientes conectados (profesores) sin necesidad de polling.",
+    },
+    {
+      pregunta: "¿Cuál es la ventaja principal de usar dotenv?",
+      opciones: [
+        { texto: "Hace que el código sea más rápido" },
+        {
+          texto:
+            "Separa credenciales y configuración del código fuente para no exponer secrets en el repositorio",
+          correcta: true,
+        },
+        { texto: "Permite usar TypeScript en el proyecto" },
+        { texto: "Conecta automáticamente a MongoDB" },
+      ],
+      explicacion:
+        "Principio 12-factor: la configuración (URLs, tokens, passwords) va en variables de entorno, nunca hardcodeada en el código.",
+    },
+    {
+      pregunta: "¿Para qué sirve Mongoose en kidotag10?",
+      opciones: [
+        { texto: "Como cliente HTTP para llamar a la API" },
+        {
+          texto:
+            "Como ODM (Object Document Mapper) que define schemas, valida datos y abstrae las queries a MongoDB",
+          correcta: true,
+        },
+        { texto: "Para gestionar las rutas de Express" },
+        { texto: "Como alternativa a JWT para autenticación" },
+      ],
+      explicacion:
+        "Sin Mongoose, trabajarías con el driver nativo de MongoDB y tendrías que validar manualmente cada campo. Mongoose define la estructura (schema), valida antes de guardar y ofrece métodos como .find(), .populate() y hooks pre/post.",
+    },
+    {
+      pregunta:
+        "¿Qué mejora introduce Express v5 respecto a v4 que beneficia a kidotag10?",
+      opciones: [
+        { texto: "Express v5 incluye una base de datos integrada" },
+        {
+          texto:
+            "Los errores async/await en rutas y middlewares se propagan automáticamente al error handler sin necesidad de try/catch explícito",
+          correcta: true,
+        },
+        { texto: "Express v5 reemplaza a Socket.IO" },
+        { texto: "Soporte nativo de TypeScript" },
+      ],
+      explicacion:
+        "En Express 4, un async handler que lanza un error requiere try/catch y llamar next(err) manualmente. Express 5 captura automáticamente los errores de promesas rechazadas y los pasa al error handler, reduciendo boilerplate.",
+    },
+  ]}
+/>

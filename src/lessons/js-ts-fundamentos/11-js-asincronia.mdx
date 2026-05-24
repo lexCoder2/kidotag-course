@@ -1,0 +1,111 @@
+# Promesas y async/await desde cero
+
+Cuando pides datos al servidor, la respuesta no llega instantaneamente.
+Por eso usamos codigo **asincrono**.
+
+## Idea simple
+
+- Tu app pide datos.
+- Mientras espera, puede seguir funcionando.
+- Cuando llegan, actualiza la pantalla.
+
+```javascript
+async function cargar() {
+  const res = await fetch("/api/alumnos");
+  return res.json();
+}
+```
+
+<CodePlayground
+  titulo="kidotag-utils — L6: Async y await"
+  plantilla="vanilla"
+  soloConsola={true}
+  entryFile="/api.js"
+  mostrarConsola={true}
+  objetivo="Agregar comunicacion asincrona simulando llamadas HTTP al servidor de KidoTag."
+  archivos={{
+    '/index.html': { code: `<!DOCTYPE html><html lang="es"><body><p style="font-family:sans-serif;color:#94a3b8;padding:1rem">Ver consola ↓</p><script type="module" src="./index.js"></script></body></html>`, hidden: true },
+    '/helpers.js': { code: `export function formatNombre(n) {
+  return n
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, function (c) {
+      return c.toUpperCase();
+    });
+}`, readOnly: true },
+    '/reportes.js': { code: `export function resumenGrupo(alumnos) {
+  var tf = alumnos.reduce(function (acc, a) {
+    return acc + a.faltas;
+  }, 0);
+  var er = alumnos.filter(function (a) {
+    return a.asistencia < 75;
+  }).length;
+  return { total: alumnos.length, enRiesgo: er, totalFaltas: tf };
+}`, readOnly: true },
+    '/api.js': `// api.js — Comunicacion asincrona con el servidor (NUEVA)
+
+// Simula el retraso de una peticion de red real
+function simularRed(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+// Simula GET /api/alumnos
+export async function fetchAlumnos() {
+  console.log("[api] Solicitando lista de alumnos...");
+  await simularRed(400);
+  return [
+    { id: "a001", nombre: "Ana Garcia", grado: "3A", asistencia: 95, faltas: 1 },
+    { id: "a002", nombre: "Luis Mendez", grado: "3A", asistencia: 78, faltas: 5 },
+    { id: "a003", nombre: "Mia Torres", grado: "4B", asistencia: 100, faltas: 0 },
+  ];
+}
+
+// Simula POST /api/asistencia
+export async function guardarRegistro(registro) {
+  console.log("[api] Guardando registro del", registro.fecha, "...");
+  await simularRed(200);
+  return { ok: true, id: "reg-" + Date.now() };
+}`,
+    '/index.js': `import { fetchAlumnos, guardarRegistro } from "./api.js";
+import { resumenGrupo } from "./reportes.js";
+import { formatNombre } from "./helpers.js";
+
+console.log("=== KidoTag Utils v6 ===");
+
+async function main() {
+  // 1. Cargar alumnos del servidor
+  var alumnos = await fetchAlumnos();
+  console.log("Alumnos cargados:", alumnos.length);
+  alumnos.forEach(function (a) {
+    console.log(" -", formatNombre(a.nombre));
+  });
+
+  // 2. Resumen del grupo
+  var resumen = resumenGrupo(alumnos);
+  console.log("Resumen:", resumen);
+
+  // 3. Guardar registro de asistencia
+  var resultado = await guardarRegistro({
+    fecha: "2026-05-23",
+    grupo: "3A",
+    presentes: alumnos.map(function (a) {
+      return a.id;
+    }),
+  });
+  console.log("Registro guardado:", resultado);
+}
+
+main().catch(function (err) {
+  console.error("Error:", err.message);
+});`,
+}}
+pasosIncrementales={[
+"Ejecuta y observa el orden de los mensajes — el [api] aparece antes que los datos cargados.",
+"Cambia el retraso de fetchAlumnos de 400ms a 1500ms y observa el cambio.",
+"Agrega un cuarto alumno a los datos que devuelve fetchAlumnos.",
+"Envuelve la llamada a fetchAlumnos en try/catch y prueba que el error se muestra correctamente.",
+]}
+retoFinal="Agrega una funcion fetchAlumno(id) que simule GET /api/alumnos/:id. Si el id no existe, rechaza la promesa con new Error('Alumno no encontrado'). Prueba ambos casos en main()."
+/>

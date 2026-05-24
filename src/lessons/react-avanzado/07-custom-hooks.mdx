@@ -1,0 +1,338 @@
+# Custom Hooks: reutilizar lógica entre componentes
+
+Un custom hook es una función JavaScript que usa hooks de React y cuyo nombre
+empieza con "use". Permite extraer y reutilizar lógica compleja.
+
+## El problema: lógica duplicada
+
+```jsx
+// ❌ Sin custom hook — la misma lógica en múltiples componentes
+function ListaAlumnos() {
+  const [datos, setDatos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchAuth("/alumnos", { signal: controller.signal })
+      .then(setDatos)
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e.message);
+      })
+      .finally(() => setCargando(false));
+    return () => controller.abort();
+  }, []);
+  // ...
+}
+
+// El mismo patrón repetido en Grupos, Asistencias, Mensajes...
+```
+
+## La solución: custom hook useFetch
+
+```jsx
+// web/src/hooks/useFetch.js
+import { useState, useEffect } from "react";
+import fetchAuth from "../utils/fetchAuth";
+
+export function useFetch(path, deps = []) {
+  const [datos, setDatos] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!path) return;
+    const controller = new AbortController();
+    setCargando(true);
+    setError(null);
+
+    fetchAuth(path, { signal: controller.signal })
+      .then(setDatos)
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e.message);
+      })
+      .finally(() => setCargando(false));
+
+    return () => controller.abort();
+  }, [path, ...deps]);
+
+  return { datos, cargando, error };
+}
+```
+
+```jsx
+// ✅ Con custom hook — limpio y reutilizable
+function ListaAlumnos() {
+  const { datos: alumnos, cargando, error } = useFetch("/alumnos");
+  if (cargando) return <Spinner />;
+  if (error) return <p>Error: {error}</p>;
+  return (
+    <ul>
+      {alumnos.map((a) => (
+        <li key={a._id}>{a.nombre}</li>
+      ))}
+    </ul>
+  );
+}
+
+function ListaGrupos() {
+  const { datos: grupos, cargando } = useFetch("/grupos");
+  // Misma lógica, ninguna duplicación
+}
+```
+
+## Custom hooks en kidotag10
+
+```javascript
+// hooks del web de kidotag10:
+useAuth(); // → { usuario, token, login, logout }
+useAsistenciaRealTime(id); // → Socket.IO listener
+useFetch(path); // → { datos, cargando, error }
+useAlumnos(grupoId); // → lista de alumnos filtrada
+```
+
+<Callout variante="tip" titulo="Reglas de los Hooks">
+  Los hooks (incluidos custom hooks) solo se pueden llamar en: 1. El nivel
+  superior de un componente funcional 2. Dentro de otro custom hook No se pueden
+  llamar en bucles, condiciones o funciones anidadas.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Qué convierte a una función JavaScript regular en un 'custom hook' de React?",
+      opciones: [
+        { texto: "Que esté en la carpeta /hooks/" },
+        {
+          texto:
+            "Que su nombre empiece con 'use' y que use uno o más hooks de React internamente",
+          correcta: true,
+        },
+        { texto: "Que sea exportada como default" },
+        { texto: "Que acepte props como parámetros" },
+      ],
+      explicacion:
+        "React identifica los hooks por el prefijo 'use'. Esto no es solo convención — eslint-plugin-react-hooks usa el prefijo para aplicar las Reglas de Hooks (no llamar en condiciones, etc.). Una función sin el prefijo puede usar hooks pero los linters no la validarán.",
+    },
+    {
+      pregunta:
+        "¿Qué ventaja tiene useAlumnos() como custom hook versus incluir la misma lógica en el componente Dashboard?",
+      opciones: [
+        {
+          texto:
+            "Los custom hooks son más rápidos que el estado en componentes",
+        },
+        {
+          texto:
+            "La lógica de fetch y filtración de alumnos se puede reutilizar en Dashboard, en Búsqueda y en el panel de grupo — sin duplicar código",
+          correcta: true,
+        },
+        { texto: "Los custom hooks evitan re-renders" },
+        { texto: "No hay ventaja real, es solo organización de carpetas" },
+      ],
+      explicacion:
+        "Antes: cada componente que necesitaba la lista de alumnos replicaba el useEffect + useState + manejo de errores. Con useAlumnos(), un solo lugar para cambiar la URL de la API, el formato de datos o la lógica de filtrado.",
+    },
+    {
+      pregunta:
+        "¿Cuáles son las Reglas de Hooks que aplican también a los custom hooks de kidotag?",
+      opciones: [
+        { texto: "Los hooks solo pueden usarse en componentes de clase" },
+        {
+          texto:
+            "Solo llamar hooks en el nivel superior (no en ifs/loops) y solo desde componentes funcionales o custom hooks",
+          correcta: true,
+        },
+        {
+          texto: "Los hooks deben ser funciones puras sin efectos secundarios",
+        },
+        { texto: "Solo se puede usar un hook por componente" },
+      ],
+      explicacion:
+        "Las reglas de hooks garantizan que el orden de llamada sea siempre el mismo entre renders. Si llamas un hook dentro de un if, React pierde el orden y el estado se desincroniza. Por eso: nunca llamar useState o useEffect dentro de condiciones.",
+    },
+    {
+      pregunta:
+        "¿Cómo puede un custom hook compartir lógica sin compartir estado entre componentes?",
+      opciones: [
+        {
+          texto:
+            "El estado de los custom hooks es global para todos los que lo usan",
+        },
+        {
+          texto:
+            "Cada componente que llama al hook tiene su propia instancia del estado — el hook comparte lógica y comportamiento, no el estado",
+          correcta: true,
+        },
+        { texto: "Solo el primer componente que llama al hook tiene estado" },
+        { texto: "Los custom hooks requieren Context para tener estado" },
+      ],
+      explicacion:
+        "Si Dashboard y Buscador ambos llaman a useAlumnos(), cada uno tiene su propia lista de alumnos, su propio loading, su propio error. El hook comparte la lógica de fetch, pero el estado es independiente por instancia.",
+    },
+  ]}
+/>
+
+## Practica: escribe tu propio useAlumnos
+
+<CodePlayground
+  titulo="Custom Hook — useAlumnos"
+  codigo={`import { useState, useCallback } from "react";
+
+// ── Hook personalizado ──────────────────────────────────────
+function useAlumnos(inicial = []) {
+const [alumnos, setAlumnos] = useState(inicial);
+const [filtro, setFiltro] = useState("todos");
+
+const agregar = useCallback((nombre) => {
+if (!nombre.trim()) return;
+setAlumnos((prev) => [...prev, { id: Date.now(), nombre: nombre.trim(), presente: false }]);
+}, []);
+
+const togglePresente = useCallback((id) => {
+setAlumnos((prev) => prev.map((a) => (a.id === id ? { ...a, presente: !a.presente } : a)));
+}, []);
+
+const visibles = alumnos.filter((a) =>
+filtro === "todos" ? true : filtro === "presentes" ? a.presente : !a.presente,
+);
+
+const stats = {
+total: alumnos.length,
+presentes: alumnos.filter((a) => a.presente).length,
+};
+
+return { alumnos: visibles, stats, filtro, setFiltro, agregar, togglePresente };
+}
+
+// ── Componente que usa el hook ──────────────────────────────
+export default function App() {
+const { alumnos, stats, filtro, setFiltro, agregar, togglePresente } = useAlumnos([
+{ id: 1, nombre: "Ana García", presente: true },
+{ id: 2, nombre: "Luis López", presente: false },
+]);
+const [nuevo, setNuevo] = useState("");
+
+const s = {
+btn: {
+padding: "5px 14px",
+border: "none",
+borderRadius: 5,
+cursor: "pointer",
+},
+};
+
+return (
+<div style={{ fontFamily: "sans-serif", padding: 16, maxWidth: 340 }}>
+<h2>useAlumnos hook</h2>
+<p style={{ color: "#64748b", fontSize: 13, marginBottom: 12 }}>
+{stats.presentes}/{stats.total} presentes
+</p>
+
+      {/* Filtros */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {["todos", "presentes", "ausentes"].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFiltro(f)}
+            style={{
+              ...s.btn,
+              background: filtro === f ? "#274c77" : "#e2e8f0",
+              color: filtro === f ? "#fff" : "#0f172a",
+            }}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {/* Lista */}
+      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px" }}>
+        {alumnos.map((a) => (
+          <li
+            key={a.id}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "8px 10px",
+              marginBottom: 4,
+              background: a.presente ? "#f0fdf4" : "#fef2f2",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+            onClick={() => togglePresente(a.id)}
+          >
+            <span>{a.nombre}</span>
+            <span>{a.presente ? "✅" : "🔴"}</span>
+          </li>
+        ))}
+        {alumnos.length === 0 && <li style={{ color: "#64748b", fontSize: 13 }}>Sin alumnos.</li>}
+      </ul>
+
+      {/* Agregar */}
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          value={nuevo}
+          onChange={(e) => setNuevo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              agregar(nuevo);
+              setNuevo("");
+            }
+          }}
+          placeholder="Nombre del alumno..."
+          style={{ flex: 1, padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6 }}
+        />
+        <button
+          onClick={() => {
+            agregar(nuevo);
+            setNuevo("");
+          }}
+          style={{ ...s.btn, background: "#274c77", color: "#fff" }}
+        >
+          Agregar
+        </button>
+      </div>
+      <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
+        Click en un alumno para marcar/desmarcar asistencia.
+      </p>
+    </div>
+
+);
+}`}
+verificaciones={[
+{
+id: "define-custom-hook",
+titulo: "Define un custom hook (función 'use...')",
+descripcion: "Los custom hooks son funciones que empiezan con 'use' y encapsulan lógica reutilizable.",
+tipo: "contiene",
+patron: "function use",
+pista: "Ejemplo: function useAlumnos(inicial = []) {/* lógica */}",
+},
+{
+id: "usa-usecallback",
+titulo: "useCallback memoriza funciones del hook",
+descripcion: "useCallback evita que las funciones del hook cambien de referencia en cada render.",
+tipo: "contiene",
+patron: "useCallback(",
+pista: "Ejemplo: const agregar = useCallback((nombre) => { ... }, []);",
+},
+{
+id: "hook-retorna-objeto",
+titulo: "El hook retorna un objeto con sus valores",
+descripcion: "Los custom hooks retornan los valores que el componente necesita usar.",
+tipo: "contiene",
+patron: "return {",
+pista: "Ejemplo: return { alumnos, stats, agregar, togglePresente };",
+},
+{
+id: "usa-filter",
+titulo: ".filter() para lógica de filtrado en el hook",
+descripcion: ".filter() crea un sub-array con los elementos que pasan la condición.",
+tipo: "contiene",
+patron: ".filter(",
+pista: "Ejemplo: const visibles = alumnos.filter((a) => filtro === 'todos' ? true : a.presente);",
+},
+]}
+/>

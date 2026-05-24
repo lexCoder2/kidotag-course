@@ -1,0 +1,215 @@
+# Emitir tokens: loginUnificado
+
+kidotag10 tiene **tres tipos de usuario** (tutor, profesor, admin), pero todos
+hacen login por el mismo endpoint. Analicemos cómo funciona.
+
+## La ruta de login
+
+```javascript
+// src/routes/auth.routes.js
+const router = require("express").Router();
+const { loginUnificado } = require("../controllers/auth.controller");
+
+router.post("/login", loginUnificado);
+module.exports = router;
+
+// Montado en src/app.js:
+app.use("/api/auth", authRoutes);
+// → POST /api/auth/login
+```
+
+## El controlador loginUnificado
+
+```javascript
+// src/controllers/auth.controller.js
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+const Tutor = require("../models/tutor.model");
+const Profesor = require("../models/profesor.model");
+
+async function loginUnificado(req, res) {
+  const { email, password, rol } = req.body;
+
+  // 1. Validación básica
+  if (!email || !password || !rol) {
+    return res
+      .status(400)
+      .json({ ok: false, error: "Campos requeridos: email, password, rol" });
+  }
+
+  try {
+    // 2. Buscar en la colección correcta según el rol
+    let usuario;
+    switch (rol) {
+      case "tutor":
+        usuario = await Tutor.findOne({ email });
+        break;
+      case "profesor":
+        usuario = await Profesor.findOne({ email });
+        break;
+      default:
+        return res.status(400).json({ ok: false, error: "Rol no válido" });
+    }
+
+    if (!usuario) {
+      return res
+        .status(401)
+        .json({ ok: false, error: "Credenciales incorrectas" });
+    }
+
+    // 3. Verificar password
+    const passwordValido = await bcrypt.compare(password, usuario.password);
+    if (!passwordValido) {
+      return res
+        .status(401)
+        .json({ ok: false, error: "Credenciales incorrectas" });
+    }
+
+    // 4. Emitir JWT
+    const token = jwt.sign(
+      { id: usuario._id, rol, escuelaId: usuario.escuela },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    res.json({
+      ok: true,
+      data: {
+        token,
+        usuario: {
+          id: usuario._id,
+          nombre: usuario.nombre,
+          email: usuario.email,
+          rol,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: "Error interno" });
+  }
+}
+
+module.exports = { loginUnificado };
+```
+
+<Mermaid titulo="Flujo completo del login en kidotag10">
+{`sequenceDiagram
+  actor C as Cliente (React)
+  participant R as auth.routes.js
+  participant Ctrl as auth.controller.js
+  participant DB as MongoDB
+  participant JWT as jsonwebtoken
+
+C->>R: POST /api/auth/login { email, password, rol }
+R->>Ctrl: loginUnificado(req, res)
+Ctrl->>DB: Tutor.findOne({ email })
+DB-->>Ctrl: tutor | null
+Ctrl->>Ctrl: bcrypt.compare(password, tutor.password)
+Ctrl->>JWT: jwt.sign({ id, rol, escuelaId }, secret, { expiresIn: '7d' })
+JWT-->>Ctrl: token JWT firmado
+Ctrl-->>C: { ok: true, data: { token, usuario } }`}
+
+</Mermaid>
+
+## Decisiones de diseño importantes
+
+<Callout
+  variante="info"
+  titulo="¿Por qué el mismo mensaje para usuario no encontrado y password incorrecto?"
+>
+  Tanto "usuario no existe" como "password incorrecto" devuelven el mismo error
+  "Credenciales incorrectas". Esto previene el **user enumeration attack**: si
+  el error fuera diferente, un atacante podría saber qué emails están
+  registrados.
+</Callout>
+
+<Callout variante="tip" titulo="¿Qué datos incluir en el payload del JWT?">
+  Solo datos que el servidor necesita en cada petición sin consultar la DB: `id`
+  (para buscar el usuario completo si se necesita), `rol` (para autorización) y
+  `escuelaId` (para filtrar datos por escuela). Nunca incluir el password ni
+  datos sensibles.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué loginUnificado devuelve el mismo error 'Credenciales incorrectas' tanto cuando el usuario no existe como cuando el password es incorrecto?",
+      opciones: [
+        { texto: "Por simplicidad — es más fácil de implementar" },
+        {
+          texto:
+            "Para prevenir user enumeration: si los errores fueran distintos, un atacante sabría qué emails están registrados",
+          correcta: true,
+        },
+        { texto: "Porque MongoDB no puede distinguir entre los dos casos" },
+        { texto: "Para cumplir con el estándar JWT" },
+      ],
+      explicacion:
+        "Distinguir 'usuario no existe' de 'password incorrecto' le da información a un atacante. El mensaje unificado es una práctica de seguridad estándar.",
+    },
+    {
+      pregunta: "¿Por qué NO se incluye el password en el payload del JWT?",
+      opciones: [
+        { texto: "Porque jsonwebtoken no acepta strings largos en el payload" },
+        {
+          texto:
+            "Porque el payload del JWT está firmado pero NO encriptado — cualquiera puede decodificarlo con Base64",
+          correcta: true,
+        },
+        { texto: "Porque el password ya está en la base de datos" },
+        { texto: "Por razones de rendimiento" },
+      ],
+      explicacion:
+        "El JWT solo está firmado (para verificar integridad), no encriptado. Cualquiera puede decodificar el payload con Base64URL. Nunca guardar datos sensibles en el payload.",
+    },
+    {
+      pregunta:
+        "¿Qué tiempo de expiración es apropiado para el token de acceso en kidotag10?",
+      opciones: [
+        { texto: "Sin expiración — para no molestar al usuario con re-logins" },
+        {
+          texto:
+            "Muy corto (15 min – 1 hora) para access token, con un refresh token de mayor duración para renovarlo",
+          correcta: true,
+        },
+        { texto: "Exactamente 24 horas fijo" },
+        { texto: "La expiración es gestionada por el cliente, no el servidor" },
+      ],
+      explicacion:
+        "Un token sin expiración comprometido es válido para siempre. kidotag10 usa 7d para simplificar (es una app escolar interna), pero una app bancaria usaría 15 min + refresh token. El balance es entre seguridad y experiencia de usuario.",
+    },
+    {
+      pregunta:
+        "¿Qué datos mínimos debe incluir el payload del JWT en kidotag10 para que los middlewares funcionen?",
+      opciones: [
+        { texto: "Solo el email del usuario" },
+        {
+          texto:
+            "El _id del usuario, su rol y su escuelaId — suficiente para autenticar, autorizar por rol y filtrar datos de la escuela correcta",
+          correcta: true,
+        },
+        { texto: "Todos los campos del documento Tutor/Profesor" },
+        { texto: "Solo el rol, el id no es necesario" },
+      ],
+      explicacion:
+        "Con id + rol + escuelaId, el middleware puede: verificar que el token es válido (jwt.verify), comprobar el rol (esAdmin, esProfesor) y filtrar datos de la escuela del usuario — sin consultar MongoDB en cada petición.",
+    },
+    {
+      pregunta:
+        "¿Qué son los refresh tokens y cómo mejorarían la seguridad de kidotag10?",
+      opciones: [
+        { texto: "Tokens que se refrescan solos sin intervención del usuario" },
+        {
+          texto:
+            "Tokens de larga duración guardados en BD que permiten emitir nuevos access tokens sin re-login, revocables en cualquier momento",
+          correcta: true,
+        },
+        { texto: "Una segunda copia del access token para redundancia" },
+        { texto: "Tokens encriptados más seguros que los JWT estándar" },
+      ],
+      explicacion:
+        "Con refresh tokens: el access token dura 15 min (si lo roban, expira pronto); el refresh token dura 30 días y está en BD (puede revocarse si el usuario pierde el dispositivo). kidotag10 usa tokens de larga duración por simplicidad, pero en producción se recomienda este patrón.",
+    },
+  ]}
+/>

@@ -1,0 +1,181 @@
+# Responsive y Mobile First
+
+kidotag10 web se usa desde tablets en las escuelas y también desde desktop.
+El enfoque Mobile First diseña primero para pantallas pequeñas.
+
+## Media queries en kidotag10
+
+```css
+/* Mobile First: los estilos base son para móvil */
+.layout {
+  display: flex;
+  flex-direction: column; /* columna en móvil */
+}
+
+.sidebar {
+  width: 100%;
+  order: 2; /* sidebar al fondo en móvil */
+}
+
+.contenido {
+  width: 100%;
+  order: 1;
+}
+
+/* Tablet (768px+) */
+@media (min-width: 768px) {
+  .layout {
+    flex-direction: row; /* fila en tablet/desktop */
+  }
+
+  .sidebar {
+    width: 240px;
+    order: 1;
+  }
+
+  .contenido {
+    flex: 1;
+    order: 2;
+  }
+}
+
+/* Desktop (1024px+) */
+@media (min-width: 1024px) {
+  .sidebar {
+    width: 280px;
+  }
+}
+```
+
+## Grid de alumnos responsive
+
+```css
+/* 1 columna en móvil, 2 en tablet, 3+ en desktop */
+.grid-alumnos {
+  display: grid;
+  grid-template-columns: 1fr; /* móvil */
+  gap: var(--space-md);
+}
+
+@media (min-width: 640px) {
+  .grid-alumnos {
+    grid-template-columns: repeat(2, 1fr); /* tablet pequeña */
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-alumnos {
+    grid-template-columns: repeat(3, 1fr); /* desktop */
+  }
+}
+
+/* Auto-fill: el navegador decide cuántas columnas caben */
+.grid-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-md);
+}
+```
+
+## Tipografía responsive con clamp()
+
+```css
+/* clamp(mínimo, ideal, máximo) — escala fluidamente */
+h1 {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  /* en móvil: ~1.5rem, escala con el viewport, máximo 2.5rem en desktop */
+}
+```
+
+## Imágenes y contenido responsive
+
+```css
+img {
+  max-width: 100%;
+  height: auto; /* mantener proporción */
+}
+
+/* Tabla responsive — scroll horizontal en móvil */
+.tabla-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  min-width: 600px;
+}
+```
+
+<Callout variante="tip" titulo="DevTools: simular dispositivos">
+  En Chrome/Firefox DevTools, el ícono de responsive (Ctrl+Shift+M) permite
+  probar en distintos tamaños. Los breakpoints de kidotag10: sm=640px, md=768px,
+  lg=1024px, xl=1280px.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué el enfoque 'Mobile First' define los estilos base para móvil y usa min-width en las media queries?",
+      opciones: [
+        { texto: "Porque los móviles son más lentos y necesitan menos CSS" },
+        {
+          texto:
+            "Porque es más fácil añadir complejidad al escalar hacia arriba que quitarla al escalar hacia abajo — los estilos de desktop son extensiones de los de móvil",
+          correcta: true,
+        },
+        { texto: "Google penaliza a los sitios que no usan Mobile First" },
+        { texto: "Las media queries min-width son más rápidas que max-width" },
+      ],
+      explicacion:
+        "Con Desktop First (max-width), escribes el diseño complejo primero y luego simplificarlo para móvil — más difícil. Con Mobile First, el diseño simple base funciona en móvil, y las media queries añaden complejidad para pantallas más grandes.",
+    },
+    {
+      pregunta:
+        "¿Cuál es el tamaño mínimo recomendado para elementos interactivos (botones, links) en interfaces móviles como kidotag?",
+      opciones: [
+        { texto: "16x16 píxeles — suficiente para ver el elemento" },
+        {
+          texto:
+            "Al menos 44x44 píxeles (recomendación de Apple y Android) para que sea fácilmente presionable con el dedo",
+          correcta: true,
+        },
+        { texto: "32x32 píxeles" },
+        { texto: "No hay un estándar establecido" },
+      ],
+      explicacion:
+        "Los dedos humanos tienen entre 44 y 57 píxeles de precisión en pantallas móviles. Botones más pequeños causan errores de toque (fat finger problem). En kidotag, los botones de asistencia del profesor deben ser grandes y cómodos de usar.",
+    },
+    {
+      pregunta: "¿Cuándo usar CSS Grid versus Flexbox para layout en kidotag?",
+      opciones: [
+        { texto: "Siempre usar Grid, es más moderno" },
+        {
+          texto:
+            "Flexbox para layouts lineales (barra de navegación, fila de botones). Grid para layouts bidimensionales (dashboard de módulos, tabla de alumnos en tarjetas)",
+          correcta: true,
+        },
+        { texto: "Siempre usar Flexbox, Grid tiene menos soporte" },
+        { texto: "Son intercambiables, no importa cuál usar" },
+      ],
+      explicacion:
+        "En kidotag: la barra de navegación con logo + links + avatar usa Flexbox (1 dimensión). La pantalla de grupos del profesor con tarjetas que se reorganizan en móvil/tablet/desktop usa Grid con repeat(auto-fit, minmax(280px, 1fr)).",
+    },
+    {
+      pregunta:
+        "¿Para qué sirven las unidades CSS vw y vh en el diseño responsive de kidotag?",
+      opciones: [
+        {
+          texto:
+            "vw = viewport width (% del ancho de pantalla), vh = viewport height (% del alto) — útiles para pantallas completas, alturas mínimas y tipografía fluida",
+          correcta: true,
+        },
+        { texto: "Son equivalentes a % pero más precisas" },
+        { texto: "Solo funcionan en elementos de bloque" },
+        { texto: "vw y vh son lo mismo que vmin y vmax" },
+      ],
+      explicacion:
+        "En kidotag: height: 100vh en la pantalla de login garantiza que ocupa toda la pantalla en móvil y desktop sin importar el tamaño. font-size: clamp(1rem, 2.5vw, 1.5rem) crea tipografía fluida que escala con el viewport.",
+    },
+  ]}
+/>

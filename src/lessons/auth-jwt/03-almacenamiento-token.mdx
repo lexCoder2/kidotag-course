@@ -1,0 +1,184 @@
+# Dónde guardar el token en el cliente
+
+Una vez que el servidor emite el JWT, el cliente React necesita guardarlo
+para enviarlo en las siguientes peticiones. Hay varias opciones, cada una con
+sus tradeoffs de seguridad.
+
+## Las tres opciones principales
+
+### 1. localStorage
+
+```javascript
+// Guardar
+localStorage.setItem("token", token);
+
+// Leer
+const token = localStorage.getItem("token");
+
+// Eliminar (logout)
+localStorage.removeItem("token");
+```
+
+**Ventajas:** Persiste entre pestañas y cierres del navegador.  
+**Desventaja crítica:** Vulnerable a **XSS** (Cross-Site Scripting). Cualquier
+script en tu página puede leer localStorage.
+
+### 2. sessionStorage
+
+```javascript
+sessionStorage.setItem("token", token);
+```
+
+**Ventajas:** Se borra al cerrar la pestaña.  
+**Desventaja:** También vulnerable a XSS, y el usuario pierde la sesión al cerrar.
+
+### 3. Cookie HttpOnly
+
+```javascript
+// El servidor envía la cookie (el JS no puede leerla)
+res.cookie("token", jwt, {
+  httpOnly: true, // ← JS no puede acceder (protege de XSS)
+  secure: true, // ← solo HTTPS
+  sameSite: "strict", // ← protege de CSRF
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
+```
+
+**Ventaja:** El JavaScript del cliente **nunca puede leer el token** — protege de XSS.  
+**Desventaja:** Requiere configuración extra contra **CSRF** (Cross-Site Request Forgery).
+
+## Comparativa de seguridad
+
+| Opción          | XSS           | CSRF                   | Persistencia   | Implementación |
+| --------------- | ------------- | ---------------------- | -------------- | -------------- |
+| localStorage    | ❌ Vulnerable | ✅ Seguro              | ✅ Persiste    | Muy simple     |
+| sessionStorage  | ❌ Vulnerable | ✅ Seguro              | ❌ No persiste | Muy simple     |
+| Cookie HttpOnly | ✅ Seguro     | ⚠️ Requiere CSRF token | ✅ Persiste    | Más compleja   |
+
+## ¿Qué hace kidotag10-web?
+
+kidotag10 usa **localStorage** con el contexto de React. Es la opción más sencilla
+para una aplicación de red escolar interna:
+
+```javascript
+// web/src/context/AuthContext.jsx de kidotag10
+const [token, setToken] = useState(() => localStorage.getItem("token"));
+
+const login = (tokenRecibido, datosUsuario) => {
+  localStorage.setItem("token", tokenRecibido);
+  setToken(tokenRecibido);
+  setUsuario(datosUsuario);
+};
+
+const logout = () => {
+  localStorage.removeItem("token");
+  setToken(null);
+  setUsuario(null);
+};
+```
+
+<Callout
+  variante="warning"
+  titulo="Para producción con datos sensibles: Cookie HttpOnly"
+>
+  kidotag10 usa localStorage por simplicidad educativa. Para una aplicación con
+  datos médicos, bancarios o muy sensibles, las cookies HttpOnly son la
+  recomendación de OWASP. La elección depende del perfil de riesgo de tu
+  aplicación.
+</Callout>
+
+## Expiración y renovación
+
+El token de kidotag10 expira en 7 días (`expiresIn: '7d'`). Cuando expira,
+el cliente recibe un 401 TOKEN_EXPIRADO y debe pedir nuevas credenciales:
+
+```javascript
+// Interceptor de peticiones en kidotag10-web
+async function fetchConAuth(url, options = {}) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Authorization: token ? `Bearer ${token}` : undefined,
+    },
+  });
+
+  if (res.status === 401) {
+    // Token expirado o inválido → logout
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  }
+
+  return res;
+}
+```
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué una cookie HttpOnly protege mejor contra XSS que localStorage?",
+      opciones: [
+        { texto: "Porque las cookies se encriptan automáticamente" },
+        {
+          texto:
+            "Porque JavaScript no puede acceder a cookies con el flag HttpOnly — incluso código malicioso inyectado no puede robar el token",
+          correcta: true,
+        },
+        { texto: "Porque las cookies tienen una vida útil más corta" },
+        { texto: "Porque las cookies solo funcionan con HTTPS" },
+      ],
+      explicacion:
+        "El flag HttpOnly hace que el navegador nunca exponga la cookie a document.cookie ni a ninguna API JavaScript. Un script XSS no puede robarla, aunque sí puede hacer peticiones con ella (por eso se necesita CSRF protection).",
+    },
+    {
+      pregunta:
+        "¿Qué es un ataque CSRF y cómo afecta al almacenamiento de tokens en cookies?",
+      opciones: [
+        { texto: "Un ataque que inyecta código malicioso en la página" },
+        {
+          texto:
+            "Cross-Site Request Forgery: una página maliciosa fuerza al navegador del usuario a hacer peticiones a kidotag10 usando sus cookies automáticamente",
+          correcta: true,
+        },
+        { texto: "Un ataque que roba el JWT del localStorage" },
+        { texto: "Un ataque de fuerza bruta contra el servidor" },
+      ],
+      explicacion:
+        "Las cookies se envían automáticamente en cada petición, incluso desde otras páginas. localStorage NO. Para protegerse de CSRF con cookies: flag SameSite=Strict o Lax, y tokens CSRF adicionales en formularios críticos.",
+    },
+    {
+      pregunta:
+        "¿Por qué kidotag10 en su versión actual usa localStorage en lugar de cookies HttpOnly?",
+      opciones: [
+        { texto: "Porque localStorage es más seguro" },
+        {
+          texto:
+            "Por simplicidad de implementación en una app SPA React + Express con CORS. Las cookies HttpOnly requieren configuración de CORS más cuidadosa con credenciales",
+          correcta: true,
+        },
+        { texto: "Las cookies HttpOnly no funcionan con SPAs" },
+        { texto: "localStorage es el estándar de la industria para JWT" },
+      ],
+      explicacion:
+        "En una SPA con API separada (CORS), las cookies requieren credentials: 'include' en fetch y Access-Control-Allow-Credentials: true con un origen específico en el servidor. localStorage es más sencillo pero vulnerable a XSS. kidotag10 usa localStorage como primera implementación; la cookie HttpOnly es la mejora recomendada.",
+    },
+    {
+      pregunta:
+        "¿Qué ventaja tiene sessionStorage sobre localStorage para guardar tokens temporales?",
+      opciones: [
+        { texto: "sessionStorage es más rápido" },
+        {
+          texto:
+            "sessionStorage se borra al cerrar la pestaña — el token no persiste entre sesiones del navegador, reduciendo la ventana de exposición",
+          correcta: true,
+        },
+        { texto: "sessionStorage tiene mayor capacidad" },
+        { texto: "sessionStorage es accesible desde otras pestañas" },
+      ],
+      explicacion:
+        "Para una app escolar donde el profesor cierra el navegador al terminar la jornada, sessionStorage ofrece un balance: el token expira al cerrar la ventana, sin necesidad de logout explícito. Al día siguiente inicia sesión de nuevo.",
+    },
+  ]}
+/>

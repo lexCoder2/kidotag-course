@@ -1,0 +1,140 @@
+# Índices y rendimiento
+
+Un **índice** en MongoDB es como el índice de un libro: en lugar de leer
+todas las páginas para encontrar un tema, vas directo a la página correcta.
+
+## Sin índice vs con índice
+
+```javascript
+// Sin índice: MongoDB lee TODOS los documentos (collection scan)
+// Con 100,000 alumnos → lee 100,000 documentos
+await Alumno.findOne({ uid_nfc: "A1B2C3" }); // lento
+
+// Con índice en uid_nfc → va directamente al documento correcto
+// Cualquier número de documentos → mismo tiempo (O(log n))
+await Alumno.findOne({ uid_nfc: "A1B2C3" }); // rápido
+```
+
+## Índices en los modelos de kidotag10
+
+```javascript
+// src/models/alumno.model.js
+const alumnoSchema = new Schema({
+  nombre: String,
+  uid_nfc: { type: String, unique: true, sparse: true },
+  //                       ↑ crea índice único  ↑ permite null sin conflicto
+  escuela: { type: Schema.Types.ObjectId, ref: "Escuela", index: true },
+  //                                                              ↑ índice simple
+});
+
+// src/models/anuncio.model.js — índice compuesto
+anuncioSchema.index({ escuela: 1, creadoEn: -1 });
+// ↑ consultas por escuela ordenadas por fecha reciente son muy rápidas
+```
+
+## Tipos de índices
+
+```javascript
+// Simple — búsqueda por un campo
+{ email: 1 }    // 1 = ascendente, -1 = descendente
+
+// Único — no permite duplicados
+{ uid_nfc: 1 }, { unique: true }
+
+// Compuesto — búsquedas que filtran por múltiples campos
+{ escuela: 1, fecha: -1 }
+
+// Sparse — solo indexa documentos donde el campo existe (permite null)
+{ uid_nfc: 1 }, { unique: true, sparse: true }
+
+// TTL — elimina documentos automáticamente después de X segundos
+{ creadoEn: 1 }, { expireAfterSeconds: 86400 }  // 24 horas
+```
+
+## ¿Cuándo añadir un índice?
+
+<Callout variante="tip" titulo="Regla práctica para índices">
+  Crea un índice si: (1) consultas frecuentes filtran por ese campo, (2) el
+  campo tiene alta cardinalidad (muchos valores distintos), (3) la colección
+  tiene más de ~1,000 documentos. Los índices aceleran lecturas pero ralentizan
+  escrituras — no indexar todo.
+</Callout>
+
+| Campo            | ¿Índice?                         | Razón                                        |
+| ---------------- | -------------------------------- | -------------------------------------------- |
+| uid_nfc          | ✅ Único                         | Búsquedas frecuentes al pasar la tarjeta NFC |
+| email            | ✅ Único                         | Búsqueda en cada login                       |
+| escuela          | ✅ Simple                        | Filtrar toda la data por escuela             |
+| nombre           | ⚠️ Solo si hay búsqueda de texto | Alta cardinalidad pero rara vez se busca     |
+| activo (boolean) | ❌ No                            | Baja cardinalidad (solo true/false)          |
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué uid_nfc tiene el flag sparse: true además de unique: true en kidotag10?",
+      opciones: [
+        { texto: "Para que el índice ocupe menos espacio en disco" },
+        {
+          texto:
+            "Porque algunos alumnos no tienen tarjeta NFC asignada (uid_nfc = null), y unique sin sparse rechazaría más de un null",
+          correcta: true,
+        },
+        { texto: "Para mejorar el rendimiento de las escrituras" },
+        { texto: "Es obligatorio cuando se usa unique con ObjectId" },
+      ],
+      explicacion:
+        "Con unique normal, MongoDB solo permite un documento con uid_nfc = null. sparse hace que solo se indexen los documentos donde el campo existe — múltiples alumnos sin tarjeta (null) son permitidos.",
+    },
+    {
+      pregunta:
+        "¿Qué es un índice compuesto en MongoDB y cuándo se usaría en kidotag10?",
+      opciones: [
+        { texto: "Un índice que indexa múltiples colecciones" },
+        {
+          texto:
+            "Un índice sobre múltiples campos de un mismo documento, útil para queries que filtran por esa combinación de campos",
+          correcta: true,
+        },
+        { texto: "Un índice que combina texto y números" },
+        { texto: "El índice _id que crea MongoDB automáticamente" },
+      ],
+      explicacion:
+        "En kidotag10: un índice compuesto { alumnoId: 1, fecha: -1 } en la colección Asistencia optimiza la query 'asistencias del alumno X en el mes Y' que se usa en los reportes de tutores.",
+    },
+    {
+      pregunta: "¿Qué hace el método .explain('executionStats') en Mongoose?",
+      opciones: [
+        { texto: "Genera documentación automática de la query" },
+        {
+          texto:
+            "Retorna estadísticas de ejecución de la query: si usó índice, cuántos documentos examinó y el tiempo transcurrido",
+          correcta: true,
+        },
+        { texto: "Explica el schema del modelo en texto" },
+        { texto: "Valida la sintaxis de la query antes de ejecutarla" },
+      ],
+      explicacion:
+        "explain() es la herramienta principal para detectar queries lentas. Si ves COLLSCAN (escaneo completo) en lugar de IXSCAN (escaneo de índice), la query necesita un índice. Fundamental para optimizar las consultas de asistencia en kidotag10.",
+    },
+    {
+      pregunta:
+        "¿Qué es un TTL index en MongoDB y cómo sería útil en kidotag10?",
+      opciones: [
+        { texto: "Un índice de texto completo para búsquedas" },
+        {
+          texto:
+            "Un índice que expira automáticamente documentos después de un tiempo especificado",
+          correcta: true,
+        },
+        {
+          texto:
+            "Un índice temporal que MongoDB crea mientras ejecuta una query",
+        },
+        { texto: "Un índice que solo funciona en campos de tipo Date" },
+      ],
+      explicacion:
+        "Con un TTL index en un campo de sesión o token, MongoDB eliminaría los registros expirados automáticamente. En kidotag10, si guardaras refresh tokens en MongoDB, un TTL index los borraría al expirar sin necesidad de un job de limpieza.",
+    },
+  ]}
+/>

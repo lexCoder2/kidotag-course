@@ -1,0 +1,158 @@
+# React Router v6: navegación en SPAs
+
+React Router maneja la navegación en kidotag10 web sin recargar la página.
+
+## Configuración de rutas
+
+```jsx
+// web/src/App.jsx
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Rutas públicas */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Rutas protegidas */}
+        <Route path="/" element={<PrivateRoute />}>
+          <Route index element={<Navigate to="/dashboard" />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="alumnos" element={<Alumnos />} />
+          <Route path="alumnos/:id" element={<DetalleAlumno />} />
+          <Route path="grupos" element={<Grupos />} />
+          <Route path="asistencias" element={<Asistencias />} />
+        </Route>
+
+        {/* 404 */}
+        <Route path="*" element={<PaginaNoEncontrada />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+## Hooks de React Router
+
+```jsx
+import {
+  useNavigate, // navegar programáticamente
+  useParams, // parámetros de la URL (:id)
+  useLocation, // URL actual
+  Link, // enlace sin recarga
+} from "react-router-dom";
+
+// useNavigate
+function FormNuevoAlumno() {
+  const navigate = useNavigate();
+  async function guardar() {
+    await crearAlumno(form);
+    navigate("/alumnos"); // ← redirigir después de guardar
+  }
+}
+
+// useParams
+function DetalleAlumno() {
+  const { id } = useParams(); // /alumnos/507f1f77bcf86cd799439011
+  const [alumno, setAlumno] = useState(null);
+  useEffect(() => {
+    fetchAuth(`/alumnos/${id}`).then(setAlumno);
+  }, [id]);
+}
+
+// Link
+<Link to="/alumnos">Ver todos los alumnos</Link>;
+```
+
+## Outlet: rutas anidadas
+
+```jsx
+// El layout padre usa <Outlet /> para renderizar los hijos
+function LayoutDashboard() {
+  return (
+    <div className="layout">
+      <Sidebar />
+      <main>
+        <Outlet /> {/* ← aquí se renderiza la ruta hija activa */}
+      </main>
+    </div>
+  );
+}
+
+<Route path="/" element={<LayoutDashboard />}>
+  <Route path="alumnos" element={<Alumnos />} />
+  <Route path="grupos" element={<Grupos />} />
+</Route>;
+```
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Cuál es la diferencia entre Link to='/alumnos' y a href='/alumnos' en React?",
+      opciones: [
+        { texto: "No hay diferencia en el resultado visual" },
+        {
+          texto:
+            "Link de React Router actualiza la URL y renderiza el componente sin recargar la página (SPA). El anchor HTML hace una petición HTTP completa que recarga toda la app",
+          correcta: true,
+        },
+        { texto: "Link solo funciona con rutas definidas en Routes" },
+        { texto: "El anchor HTML no funciona en React" },
+      ],
+      explicacion:
+        "Una SPA (Single Page Application) carga el HTML/JS una sola vez. Todos los cambios de vista son actualizaciones del DOM en JavaScript. Link intercepta el clic y usa la History API del navegador para cambiar la URL sin recargar.",
+    },
+    {
+      pregunta:
+        "¿Cómo accede el componente PerfilAlumno al id de la URL /alumnos/:id en React Router?",
+      opciones: [
+        { texto: "props.params.id" },
+        {
+          texto:
+            "useParams() — el hook de React Router que retorna los parámetros de la ruta actual como objeto",
+          correcta: true,
+        },
+        { texto: "window.location.params.id" },
+        { texto: "useRouter().query.id" },
+      ],
+      explicacion:
+        "En kidotag: const { id } = useParams() dentro del componente DetalleAlumno. Si la ruta es /alumnos/64abc123, id será '64abc123'. Luego: useEffect(() => { fetchAlumno(id) }, [id]).",
+    },
+    {
+      pregunta:
+        "¿Cómo se navega programáticamente en React Router después de un login exitoso?",
+      opciones: [
+        { texto: "window.location.href = '/dashboard'" },
+        {
+          texto:
+            "useNavigate() retorna una función navigate que se llama después de la acción: const navigate = useNavigate(); navigate('/dashboard')",
+          correcta: true,
+        },
+        {
+          texto:
+            "history.push('/dashboard') de React Router v5 (obsoleto en v6)",
+        },
+        { texto: "React Router navega automáticamente después del login" },
+      ],
+      explicacion:
+        "En kidotag: al terminar el login → navigate('/dashboard'). Para reemplazar el historial y evitar volver al login con el botón Atrás: navigate('/dashboard', { replace: true }). navigate(-1) vuelve a la página anterior.",
+    },
+    {
+      pregunta: "¿Qué hace el componente Outlet en React Router?",
+      opciones: [
+        { texto: "Renderiza el componente de error 404" },
+        {
+          texto:
+            "Marca el lugar donde se renderizan las rutas hijas anidadas dentro de un layout padre",
+          correcta: true,
+        },
+        { texto: "Es un contenedor especial para formularios" },
+        { texto: "Maneja la redirección cuando no hay ruta coincidente" },
+      ],
+      explicacion:
+        "En kidotag: el DashboardLayout tiene Outlet donde se renderizan /dashboard/alumnos, /dashboard/grupos, etc. Así el Navbar y Sidebar son compartidos por todas las rutas del dashboard sin duplicar código.",
+    },
+  ]}
+/>

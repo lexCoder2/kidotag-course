@@ -1,0 +1,217 @@
+# Vite: el bundler moderno
+
+Vite reemplaza a Webpack en proyectos modernos de React. El web de kidotag10
+usa Vite 5.1.
+
+<LibCard
+  nombre="vite"
+  version="5.1.0"
+  npm="vite"
+  categoria="devtools"
+  docs="https://vitejs.dev/guide/"
+  descripcion="Bundler y servidor de desarrollo ultrarrápido para proyectos web modernos. Usa ES modules nativos en desarrollo y Rollup para el build de producción."
+  porque="Webpack puede tardar 10-30 segundos en iniciar y 1-5s en HMR. Vite inicia en <500ms y el HMR es casi instantáneo. kidotag10 eligió Vite para una experiencia de desarrollo ágil."
+  usoEjemplo={`// vite.config.js (web de kidotag10)
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': 'http://localhost:4000' // evita CORS en dev
+    }
+  }
+})`}
+  alternativas={[
+    { nombre: "Create React App (Webpack)", porque_no: "Lento en start y HMR, configuración rígida, deprecado por Meta." },
+    { nombre: "Parcel", porque_no: "Zero-config pero menos personalizable que Vite." },
+    { nombre: "Next.js", porque_no: "Ideal para SSR, pero kidotag10 web es una SPA pura — Vite es más simple." },
+  ]}
+/>
+
+## Estructura del proyecto web
+
+```
+web/
+├── index.html         ← punto de entrada (Vite lo transforma)
+├── vite.config.js     ← configuración
+├── .env               ← VITE_API_URL=http://localhost:4000/api
+├── package.json
+└── src/
+    ├── main.jsx       ← monta <App /> en #root
+    ├── App.jsx        ← rutas principales
+    └── ...
+```
+
+```html
+<!-- index.html — el punto de entrada de Vite -->
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Kidotag</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <!-- ↑ type="module" → Vite sirve ES modules nativos en dev -->
+  </body>
+</html>
+```
+
+## Scripts npm
+
+```bash
+npm run dev      # servidor de desarrollo (HMR en http://localhost:5173)
+npm run build    # bundle de producción en dist/
+npm run preview  # sirve dist/ localmente para verificar el build
+```
+
+## HMR (Hot Module Replacement)
+
+```
+Sin HMR (Webpack antiguo):
+  Cambias un componente → recarga toda la página → pierdes el estado
+
+Con HMR de Vite:
+  Cambias un componente → solo ese módulo se actualiza → estado preservado
+  Tiempo: ~50ms vs ~2-5 segundos
+```
+
+<CodePlayground
+  titulo="kidotag-frontend — L1: Shell de la aplicacion"
+  plantilla="react"
+  entryFile="/App.jsx"
+  objetivo="Crear la estructura inicial de la app: componente raiz, hoja de estilos global e importaciones."
+  archivos={{
+    '/styles.css': `/* styles.css — estilos globales de kidotag-frontend */
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f8fafc;
+}
+.app {
+  max-width: 480px;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+.app h1 {
+  color: #1e293b;
+  font-size: 1.4rem;
+  border-bottom: 2px solid #274c77;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+.badge-regular {
+  background: #fef9c3;
+  color: #854d0e;
+}
+.badge-riesgo {
+  background: #fee2e2;
+  color: #b91c1c;
+}`,
+    '/App.jsx': `import "./styles.css";
+
+// L1: Componente raiz — shell inicial de la app
+export default function App() {
+  return (
+    <div className="app">
+      <h1>KidoTag — Asistencia</h1>
+      <p style={{ color: "#64748b", margin: 0 }}>Gestion de asistencia escolar.</p>
+      <span className="badge badge-ok" style={{ marginTop: ".75rem", display: "inline-block" }}>
+        Sistema listo
+      </span>
+    </div>
+  );
+}`,
+}}
+pasosIncrementales={[
+"Ejecuta y verifica que aparece el titulo y el badge verde.",
+"Agrega un parrafo con el nombre de tu escuela dentro del div.app.",
+"En styles.css, agrega .subtitulo con color: #274c77. Aplica la clase a algun elemento.",
+"Agrega un segundo badge con clase badge-riesgo y el texto 'Sin conexion' debajo del primero.",
+]}
+retoFinal="Agrega una seccion con tres numeros lado a lado (total, presentes, ausentes) con valores de prueba. Estilalos en styles.css con una clase .resumen que use display: flex y gap: 1rem."
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Por qué el proxy de Vite (configurado en vite.config.js) ayuda con CORS en desarrollo?",
+      opciones: [
+        { texto: "Desactiva las restricciones CORS del navegador" },
+        {
+          texto:
+            "Las peticiones a /api se redirigen al servidor Express en el mismo origen, por lo que el navegador no ve una petición cross-origin — no hay CORS",
+          correcta: true,
+        },
+        { texto: "Vite añade los headers CORS automáticamente" },
+        { texto: "El proxy solo funciona con peticiones GET" },
+      ],
+      explicacion:
+        "CORS es una restricción del navegador para peticiones entre orígenes distintos (ej: localhost:5173 → localhost:4000). El proxy de Vite reescribe la URL en el servidor de desarrollo: la petición del navegador va a localhost:5173/api (mismo origen) y Vite la reenvía a localhost:4000.",
+    },
+    {
+      pregunta:
+        "¿Qué es Hot Module Replacement (HMR) en Vite y cómo beneficia el desarrollo de kidotag?",
+      opciones: [
+        { texto: "HMR reinicia el servidor Node.js automáticamente" },
+        {
+          texto:
+            "Reemplaza módulos cambiados en el navegador sin recargar la página, preservando el estado de la app",
+          correcta: true,
+        },
+        { texto: "HMR es solo para CSS, no para JavaScript" },
+        { texto: "HMR compila TypeScript a JavaScript más rápido" },
+      ],
+      explicacion:
+        "Con HMR, al editar el componente Dashboard de kidotag, el módulo se actualiza al instante sin perder el estado (alumnos cargados, filtros seleccionados). Sin HMR, cada cambio recarga la página y pierdes el estado.",
+    },
+    {
+      pregunta:
+        "¿Cómo accede el frontend de kidotag a la variable de entorno VITE_API_URL?",
+      opciones: [
+        { texto: "process.env.VITE_API_URL igual que en Node.js" },
+        {
+          texto:
+            "import.meta.env.VITE_API_URL — la sintaxis específica de Vite para variables de entorno del navegador",
+          correcta: true,
+        },
+        { texto: "window.env.VITE_API_URL" },
+        { texto: "require('./env').VITE_API_URL" },
+      ],
+      explicacion:
+        "Vite usa import.meta.env (estándar ESM) en lugar de process.env (Node.js). Solo las variables con prefijo VITE_ se incluyen en el bundle del navegador. Las sin prefijo permanecen en el servidor.",
+    },
+    {
+      pregunta:
+        "¿Qué diferencia hay entre el modo 'development' y 'production' en Vite?",
+      opciones: [
+        { texto: "Solo el puerto del servidor cambia" },
+        {
+          texto:
+            "Development usa el dev server con HMR; production ejecuta npm run build que genera un bundle optimizado y minificado en dist/",
+          correcta: true,
+        },
+        { texto: "Production activa HTTPS automáticamente" },
+        { texto: "No hay diferencia funcional, solo de velocidad" },
+      ],
+      explicacion:
+        "npm run dev inicia el servidor de desarrollo con HMR (ideal para desarrollo). npm run build genera archivos estáticos optimizados en dist/ (lo que se despliega en producción). En kidotag, el backend Express puede servir dist/ en producción.",
+    },
+  ]}
+/>

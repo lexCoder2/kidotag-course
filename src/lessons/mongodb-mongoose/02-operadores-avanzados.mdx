@@ -1,0 +1,219 @@
+# Operadores y consultas avanzadas
+
+kidotag10 usa varios operadores de MongoDB más allá del simple `findOne`.
+Veremos los más importantes con ejemplos reales del proyecto.
+
+## $addToSet y $pull — arrays sin duplicados
+
+```javascript
+// Añadir alumno al grupo sin duplicar
+await Grupo.findByIdAndUpdate(
+  grupoId,
+  { $addToSet: { alumnos: alumnoId } }, // ← solo añade si no existe
+  { new: true },
+);
+
+// Remover alumno del grupo
+await Grupo.findByIdAndUpdate(
+  grupoId,
+  { $pull: { alumnos: alumnoId } }, // ← elimina el valor del array
+);
+
+// vs $push que sí permite duplicados:
+{
+  $push: {
+    alumnos: alumnoId;
+  }
+} // ← puede crear duplicados ⚠️
+```
+
+## $in — buscar en una lista de valores
+
+```javascript
+// Obtener todos los alumnos de múltiples grupos
+const grupos = ["64ab1...", "64ab2...", "64ab3..."];
+const alumnos = await Alumno.find({
+  grupo: { $in: grupos },
+});
+
+// También con strings:
+await Alumno.find({
+  grado: { $in: ["1ro", "2do", "3ro"] },
+});
+```
+
+## Rangos de fecha — consultas de asistencia
+
+```javascript
+// Asistencias del día de hoy
+const hoy = new Date();
+const inicio = new Date(hoy.setHours(0, 0, 0, 0));
+const fin = new Date(hoy.setHours(23, 59, 59, 999));
+
+const asistencias = await Asistencia.find({
+  escuela: escuelaId,
+  fecha: { $gte: inicio, $lte: fin },
+});
+
+// Asistencias del mes actual
+const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+const del_mes = await Asistencia.find({
+  fecha: { $gte: inicioMes, $lte: finMes },
+});
+```
+
+## .lean() — objetos JavaScript simples
+
+```javascript
+// Sin .lean(): Mongoose Documents (con métodos .save(), .populate(), etc.)
+const alumnos = await Alumno.find();
+// alumnos[0] es un Mongoose Document — tiene overhead de memoria
+
+// Con .lean(): Plain Old JavaScript Objects
+const alumnos = await Alumno.find().lean();
+// alumnos[0] es { _id: ..., nombre: ..., uid_nfc: ... }
+// Sin métodos de Mongoose — más rápido y menor uso de memoria
+```
+
+<Callout variante="tip" titulo="Usa .lean() para lectura pura">
+  Si solo necesitas leer datos para enviar en una respuesta JSON (no modificar
+  ni guardar), `.lean()` es hasta 3x más rápido porque no crea instancias de
+  Mongoose Document.
+</Callout>
+
+## Promise.all() — queries en paralelo
+
+```javascript
+// ❌ Secuencial — cada query espera a la anterior (lento)
+const alumnos = await Alumno.find({ escuela: id });
+const profesores = await Profesor.find({ escuela: id });
+const grupos = await Grupo.find({ escuela: id });
+
+// ✅ Paralelo — las tres queries corren al mismo tiempo (3x más rápido)
+const [alumnos, profesores, grupos] = await Promise.all([
+  Alumno.find({ escuela: id }).lean(),
+  Profesor.find({ escuela: id }).lean(),
+  Grupo.find({ escuela: id }).lean(),
+]);
+```
+
+<CodePlayground
+  titulo="Operadores MongoDB simulados"
+  descripcion="Prueba los operadores de array con datos de kidotag10"
+  files={{
+    "/index.js": `// Simulación de operadores MongoDB con arrays JavaScript
+
+// Estado inicial: grupos con listas de alumnos
+let grupos = [
+  { id: "g1", nombre: "1ro A", alumnos: ["a1", "a2", "a3"] },
+  { id: "g2", nombre: "2do B", alumnos: ["a4", "a5"] },
+];
+
+// $addToSet — agrega sin duplicar
+function addToSet(grupo, alumnoId) {
+  if (!grupo.alumnos.includes(alumnoId)) {
+    grupo.alumnos.push(alumnoId);
+  }
+  return grupo;
+}
+
+// $pull — elimina del array
+function pull(grupo, alumnoId) {
+  grupo.alumnos = grupo.alumnos.filter((a) => a !== alumnoId);
+  return grupo;
+}
+
+// $in — filtrar
+function findIn(grupos, ids) {
+  return grupos.filter((g) => ids.includes(g.id));
+}
+
+console.log("Estado inicial:", JSON.stringify(grupos, null, 2));
+
+// Prueba addToSet
+addToSet(grupos[0], "a4"); // nuevo
+addToSet(grupos[0], "a1"); // duplicado — no debe añadir
+console.log("Después de addToSet:", grupos[0].alumnos);
+
+// Prueba pull
+pull(grupos[0], "a2");
+console.log("Después de pull:", grupos[0].alumnos);
+
+// Prueba $in
+const resultado = findIn(grupos, ["g1"]);
+console.log(
+  "Grupos encontrados con $in:",
+  resultado.map((g) => g.nombre),
+);`,
+}}
+entryFile="/index.js"
+/>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Cuál es la diferencia entre $push y $addToSet en MongoDB?",
+      opciones: [
+        { texto: "$push es más lento que $addToSet" },
+        {
+          texto:
+            "$addToSet solo añade el elemento si no existe ya en el array, previniendo duplicados",
+          correcta: true,
+        },
+        { texto: "$push crea un nuevo array, $addToSet añade al existente" },
+        { texto: "No hay diferencia práctica" },
+      ],
+      explicacion:
+        "$push siempre añade el elemento (puede duplicar), mientras que $addToSet verifica si ya existe antes de añadir — como un Set matemático.",
+    },
+    {
+      pregunta:
+        "¿Cómo se buscarían en MongoDB todos los alumnos con asistencia entre 80% y 95%?",
+      opciones: [
+        { texto: ".find({ asistencia: { $between: [80, 95] } })" },
+        {
+          texto: ".find({ asistencia: { $gte: 80, $lte: 95 } })",
+          correcta: true,
+        },
+        { texto: ".find({ asistencia: '>80 AND <95' })" },
+        { texto: ".where('asistencia').gt(80).lt(95)" },
+      ],
+      explicacion:
+        "$gte (greater than or equal) y $lte (less than or equal) son los operadores de rango en MongoDB. Se pueden combinar en el mismo campo: { asistencia: { $gte: 80, $lte: 95 } }.",
+    },
+    {
+      pregunta: "¿Para qué sirve el operador $in en MongoDB?",
+      opciones: [
+        {
+          texto:
+            "Para buscar documentos donde el campo esté dentro de un array de valores posibles",
+          correcta: true,
+        },
+        { texto: "Para verificar si un elemento está en un campo array" },
+        { texto: "Para incluír campos en el resultado" },
+        { texto: "Para hacer un inner join entre colecciones" },
+      ],
+      explicacion:
+        "En kidotag10: Alumno.find({ _id: { $in: grupoIds } }) encuentra todos los alumnos cuyos IDs están en el array grupoIds. Es el equivalente de SQL WHERE id IN (...).",
+    },
+    {
+      pregunta: "¿Qué hace el operador $regex en una query de Mongoose?",
+      opciones: [
+        {
+          texto:
+            "Ejecuta una expresión regular en el código JavaScript del servidor",
+        },
+        {
+          texto:
+            "Filtra documentos donde el campo coincide con un patrón de expresión regular en MongoDB",
+          correcta: true,
+        },
+        { texto: "Valida el formato de un campo al guardar" },
+        { texto: "Es un alias de $eq para strings" },
+      ],
+      explicacion:
+        "Para buscar alumnos cuyo nombre contenga 'garcia' sin importar mayúsculas: Alumno.find({ nombre: { $regex: 'garcia', $options: 'i' } }). Útil para funcionalidades de búsqueda en el dashboard de kidotag10.",
+    },
+  ]}
+/>

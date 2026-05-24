@@ -1,0 +1,318 @@
+# Schemas, tipos y validadores
+
+<LibCard
+  nombre="mongoose"
+  version="9.1.4"
+  npm="mongoose"
+  categoria="database"
+  docs="https://mongoosejs.com/docs/schematypes.html"
+  descripcion="El sistema de schemas de Mongoose añade estructura y validación automática sobre los documentos flexibles de MongoDB."
+  porque="Sin schemas, nada impide guardar un alumno sin nombre o con un campo uid_nfc duplicado. Los schemas de Mongoose validan antes de llegar a la base de datos y devuelven errores descriptivos cuando algo no cumple las reglas."
+  usoEjemplo={`// src/models/alumno.model.js de kidotag10
+const alumnoSchema = new Schema({
+  nombre:  { type: String, required: [true, 'El nombre es obligatorio'], trim: true },
+  uid_nfc: { type: String, unique: true, sparse: true },
+  grado:   { type: String, enum: ['1ro','2do','3ro','4to','5to','6to'] },
+  tutor:   { type: Schema.Types.ObjectId, ref: 'Tutor' },
+}, { timestamps: true }); // crea createdAt y updatedAt automáticamente`}
+/>
+
+Un **Schema de Mongoose** define la estructura de los documentos en una colección: qué campos existen, qué tipos tienen, y qué validaciones aplican.
+
+## Tipos de datos en Mongoose
+
+```javascript
+const mongoose = require("mongoose");
+const { Schema } = mongoose;
+
+const alumnoSchema = new Schema({
+  nombre: { type: String }, // texto
+  edad: { type: Number }, // número
+  activo: { type: Boolean }, // booleano
+  nacimiento: { type: Date }, // fecha
+  tags: [String], // array de strings
+  grupo: { type: Schema.Types.ObjectId, ref: "Grupo" }, // referencia
+  contacto: {
+    // subdocumento
+    telefono: String,
+    email: String,
+  },
+  metadatos: { type: Map, of: String }, // mapa clave-valor
+});
+```
+
+## Validadores esenciales
+
+<CodePlayground
+  titulo="Schema del Alumno con validadores — basado en kidotag10"
+  archivos={{
+    '/alumno.model.js': `const mongoose = require("mongoose");
+const { Schema } = mongoose;
+
+const alumnoSchema = new Schema(
+{
+nombre: {
+type: String,
+required: [true, "El nombre es obligatorio"],
+trim: true, // Elimina espacios al inicio/final
+minlength: [2, "Mínimo 2 caracteres"],
+maxlength: [100, "Máximo 100 caracteres"],
+},
+
+    matricula: {
+      type: String,
+      required: [true, "La matrícula es obligatoria"],
+      unique: true, // índice único en MongoDB
+      uppercase: true, // Convierte a MAYÚSCULAS
+      trim: true,
+      match: [/^\\d{4}-\\d{3,6}$/, "Formato: YYYY-XXXXXX"],
+    },
+
+    grado: {
+      type: String,
+      required: true,
+      enum: {
+        values: ["1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B", "5A", "5B", "6A", "6B"],
+        message: "{VALUE} no es un grado válido",
+      },
+    },
+
+    uid_nfc: {
+      type: String,
+      unique: true,
+      sparse: true, // Permite múltiples null (sin tarjeta asignada)
+      trim: true,
+    },
+
+    activo: {
+      type: Boolean,
+      default: true,
+    },
+
+    grupo: {
+      type: Schema.Types.ObjectId,
+      ref: "Grupo",
+      required: false,
+    },
+
+    tutor: {
+      type: Schema.Types.ObjectId,
+      ref: "Tutor",
+    },
+
+    // Validación personalizada
+    fechaNacimiento: {
+      type: Date,
+      validate: {
+        validator: function (fecha) {
+          const hoy = new Date();
+          const edad = hoy.getFullYear() - fecha.getFullYear();
+          return edad >= 5 && edad <= 18;
+        },
+        message: "La edad debe estar entre 5 y 18 años",
+      },
+    },
+
+},
+{
+timestamps: true, // Agrega createdAt y updatedAt automáticamente
+versionKey: false, // Omite el campo \_\_v
+},
+);
+
+// Índice compuesto: búsquedas por escuela + grado
+alumnoSchema.index({ escuelaId: 1, grado: 1 });
+
+module.exports = mongoose.model("Alumno", alumnoSchema);`,
+    '/test.js': `// Simulación de validación Mongoose
+// En un proyecto real: const Alumno = require('./alumno.model')
+
+function validar(datos) {
+const errores = []
+
+if (!datos.nombre?.trim()) errores.push('nombre: El nombre es obligatorio')
+if (datos.nombre?.length < 2) errores.push('nombre: Mínimo 2 caracteres')
+
+if (!datos.matricula) errores.push('matricula: La matrícula es obligatoria')
+if (datos.matricula && !/^\\d{4}-\\d{3,6}$/.test(datos.matricula)) {
+errores.push('matricula: Formato inválido (ej: 2024-001)')
+}
+
+const gradosValidos = ['1A','1B','2A','2B','3A','3B','4A','4B','5A','5B','6A','6B']
+if (!gradosValidos.includes(datos.grado)) {
+errores.push(\`grado: "\${datos.grado}" no es un grado válido\`)
+}
+
+if (errores.length > 0) {
+throw new Error('ValidationError: ' + errores.join(', '))
+}
+
+return { \_id: 'mock_id_123', ...datos, activo: true, createdAt: new Date() }
+}
+
+// Probar validaciones
+const casos = [
+{ nombre: 'Ana García', matricula: '2024-001', grado: '3A' }, // ✅
+{ nombre: '', matricula: '2024-002', grado: '2B' }, // ❌ nombre vacío
+{ nombre: 'Luis', matricula: 'abc', grado: '3A' }, // ❌ matrícula inválida
+{ nombre: 'Sara', matricula: '2024-003', grado: '7Z' }, // ❌ grado inválido
+]
+
+casos.forEach(caso => {
+try {
+const resultado = validar(caso)
+console.log('✅ OK:', JSON.stringify(resultado))
+} catch (err) {
+console.log('❌ Error:', err.message)
+}
+})
+`,
+}}
+plantilla="node"
+mostrarConsola
+verificaciones={[
+{
+id: "define-schema",
+titulo: "Define un Schema de Mongoose",
+descripcion: "Un Schema describe la forma de los documentos MongoDB.",
+tipo: "contiene",
+patron: "new Schema(",
+pista: "Ejemplo: const alumnoSchema = new Schema({ nombre: { type: String, required: true } })",
+},
+{
+id: "campo-requerido",
+titulo: "Al menos un campo con 'required'",
+descripcion: "Mongoose valida automáticamente los campos requeridos antes de guardar.",
+tipo: "contiene",
+patron: "required:",
+pista: "Ejemplo: nombre: { type: String, required: [true, 'El nombre es obligatorio'] }",
+},
+{
+id: "crea-modelo",
+titulo: "Crea un Model con mongoose.model()",
+descripcion: "El Model es la clase que permite crear/leer/actualizar/borrar documentos.",
+tipo: "contiene",
+patron: "mongoose.model(",
+pista: "Ejemplo: const Alumno = mongoose.model('Alumno', alumnoSchema);",
+},
+{
+id: "usa-timestamps",
+titulo: "Schema con timestamps: true",
+descripcion: "timestamps agrega automáticamente createdAt y updatedAt a cada documento.",
+tipo: "contiene",
+patron: "timestamps:",
+pista: "Agrega como 2do argumento: new Schema({...}, { timestamps: true })",
+},
+]}
+/>
+
+## timestamps: createdAt y updatedAt gratis
+
+```javascript
+// Con timestamps: true en el Schema
+const alumno = await Alumno.create({
+  nombre: "Ana",
+  matricula: "2024-001",
+  grado: "3A",
+});
+
+console.log(alumno.createdAt); // 2024-01-15T08:30:00.000Z — automático
+console.log(alumno.updatedAt); // 2024-01-15T08:30:00.000Z — se actualiza en cada save()
+```
+
+<Callout
+  variante="kidotag"
+  titulo="En kidotag10/api — src/models/alumno.model.js"
+>
+  El modelo real de Alumno en kidotag10 incluye: `nombre`, `apellidoPaterno`,
+  `apellidoMaterno`, `matricula` (unique), `uid_nfc` (unique, sparse), `grupo`
+  (ref), `tutor` (ref), `activo` (default: true), y `timestamps: true`. El
+  modelo de `Tutor` además incluye `password` con un hook `pre("save")` para
+  hashearlo.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Qué hace unique: true en un campo de Mongoose?",
+      opciones: [
+        {
+          texto:
+            "Valida que el valor no se repita antes de guardar (en la aplicación)",
+        },
+        {
+          texto:
+            "Crea un índice único en MongoDB que rechaza documentos con valores duplicados",
+          correcta: true,
+        },
+        { texto: "Solo marca el campo como importante, sin efecto en la BD" },
+      ],
+      explicacion:
+        "unique: true le dice a Mongoose que cree un índice único en MongoDB. La validación ocurre a nivel de base de datos, lo que garantiza que no haya duplicados incluso en operaciones concurrentes.",
+    },
+    {
+      pregunta:
+        "Un alumno aún no tiene tarjeta NFC asignada. Su uid_nfc sería null. Con sparse: true en el índice, ¿qué sucede?",
+      opciones: [
+        { texto: "MongoDB rechaza el documento porque uid_nfc es null" },
+        {
+          texto:
+            "MongoDB excluye los documentos con null del índice único, permitiendo múltiples nulls",
+          correcta: true,
+        },
+        { texto: "sparse: true hace que el campo sea requerido" },
+      ],
+      explicacion:
+        "Un índice único normal no permite múltiples documentos con null en el campo indexado. sparse: true hace que MongoDB ignore los documentos donde el campo es null al aplicar la restricción de unicidad.",
+    },
+    {
+      pregunta: "¿Qué hace el validador enum en un campo de Mongoose?",
+      opciones: [
+        {
+          texto:
+            "Genera automáticamente las opciones de un select en el frontend",
+        },
+        {
+          texto:
+            "Restringe los valores válidos del campo a los listados. Guardar un valor no listado lanza un ValidationError",
+          correcta: true,
+        },
+        { texto: "Ordena los documentos por el campo enum" },
+        { texto: "Crea una enumeración TypeScript" },
+      ],
+      explicacion:
+        "En kidotag10: rol: { type: String, enum: ['admin','profesor','tutor'] }. Si intentas guardar rol: 'superadmin', Mongoose lanza un ValidationError antes de llegar a MongoDB.",
+    },
+    {
+      pregunta:
+        "¿Qué diferencia hay entre required: true en Mongoose y required en HTML?",
+      opciones: [
+        { texto: "Son equivalentes — ambos validan el campo" },
+        {
+          texto:
+            "required en Mongoose valida en el servidor antes de guardar en MongoDB. required en HTML es solo del navegador y puede ser evadido fácilmente",
+          correcta: true,
+        },
+        { texto: "required en Mongoose solo funciona en modo estricto" },
+        { texto: "required en HTML es más seguro que en Mongoose" },
+      ],
+      explicacion:
+        "La validación del servidor (Mongoose) es la que cuenta para la seguridad. Un atacante puede enviar una petición HTTP sin pasar por el navegador y omitir cualquier validación HTML.",
+    },
+    {
+      pregunta: "¿Qué son los timestamps: true en un Schema de Mongoose?",
+      opciones: [
+        { texto: "Añaden el campo timestamp con la hora actual" },
+        {
+          texto:
+            "Añaden automáticamente los campos createdAt y updatedAt gestionados por Mongoose",
+          correcta: true,
+        },
+        { texto: "Son campos obligatorios que debes definir manualmente" },
+        { texto: "Activan el modo de zona horaria de MongoDB" },
+      ],
+      explicacion:
+        "Con timestamps: true, Mongoose establece createdAt al crear el documento y actualiza updatedAt en cada save(). En kidotag10, esto es valioso en el schema de Asistencia para saber exactamente cuándo se registró cada entrada/salida.",
+    },
+  ]}
+/>

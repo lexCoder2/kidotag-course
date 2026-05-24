@@ -1,0 +1,113 @@
+# map, filter y reduce con ejemplos reales
+
+Estos metodos se usan todo el tiempo en React.
+
+- `map`: transformar cada elemento.
+- `filter`: quedarse solo con algunos.
+- `reduce`: resumir en un valor final.
+
+```javascript
+const nums = [1, 2, 3];
+const dobles = nums.map((n) => n * 2); // [2,4,6]
+```
+
+<CodePlayground
+  titulo="kidotag-utils — L5: map, filter y reduce"
+  plantilla="vanilla"
+  soloConsola={true}
+  entryFile="/reportes.js"
+  mostrarConsola={true}
+  objetivo="Procesar el array de alumnos con map, filter y reduce para generar reportes del grupo."
+  archivos={{
+    '/index.html': { code: `<!DOCTYPE html><html lang="es"><body><p style="font-family:sans-serif;color:#94a3b8;padding:1rem">Ver consola ↓</p><script type="module" src="./index.js"></script></body></html>`, hidden: true },
+    '/asistencia.js': { code: `export function getEstado(p) {
+  if (p >= 90) return "Excelente";
+  if (p >= 75) return "Regular";
+  return "En riesgo";
+}`, readOnly: true },
+    '/helpers.js': { code: `export function formatNombre(n) {
+  return n
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, function (c) {
+      return c.toUpperCase();
+    });
+}
+export function formatPorcentaje(v, d) {
+  return Number(v).toFixed(d === undefined ? 1 : d) + "%";
+}`, readOnly: true },
+    '/data.js': { code: `export var alumnos = [
+  { id: "a001", nombre: "Ana Garcia", grado: "3A", asistencia: 95, faltas: 1 },
+  { id: "a002", nombre: "Luis Mendez", grado: "3A", asistencia: 78, faltas: 5 },
+  { id: "a003", nombre: "Mia Torres", grado: "4B", asistencia: 100, faltas: 0 },
+  { id: "a004", nombre: "Carlos Ruiz", grado: "4B", asistencia: 62, faltas: 9 },
+];`, readOnly: true },
+    '/reportes.js': `// reportes.js — map, filter y reduce sobre el array de alumnos (NUEVA)
+import { getEstado } from "./asistencia.js";
+import { formatNombre, formatPorcentaje } from "./helpers.js";
+
+// map: transforma cada elemento — devuelve solo los nombres formateados
+export function obtenerNombres(alumnos) {
+  return alumnos.map(function (a) {
+    return formatNombre(a.nombre);
+  });
+}
+
+// filter: selecciona elementos — solo los alumnos en riesgo (<75%)
+export function filtrarEnRiesgo(alumnos) {
+  return alumnos.filter(function (a) {
+    return a.asistencia < 75;
+  });
+}
+
+// reduce: resume en un valor — suma todas las faltas
+export function totalFaltas(alumnos) {
+  return alumnos.reduce(function (acc, a) {
+    return acc + a.faltas;
+  }, 0);
+}
+
+// Combina los tres en un resumen del grupo
+export function resumenGrupo(alumnos) {
+  var tf = totalFaltas(alumnos);
+  return {
+    total: alumnos.length,
+    enRiesgo: filtrarEnRiesgo(alumnos).length,
+    totalFaltas: tf,
+    promedioFaltas: (tf / alumnos.length).toFixed(1),
+    nombres: obtenerNombres(alumnos),
+  };
+}`,
+    '/index.js': `import { alumnos } from "./data.js";
+import { obtenerNombres, filtrarEnRiesgo, totalFaltas, resumenGrupo } from "./reportes.js";
+import { formatNombre, formatPorcentaje } from "./helpers.js";
+
+console.log("=== KidoTag Utils v5 ===");
+
+console.log("--- map: nombres ---");
+console.log(obtenerNombres(alumnos));
+
+console.log("--- filter: en riesgo (<75%) ---");
+var riesgo = filtrarEnRiesgo(alumnos);
+if (riesgo.length === 0) {
+  console.log("Ningun alumno en riesgo");
+} else {
+  riesgo.forEach(function (a) {
+    console.log(" ", formatNombre(a.nombre), "—", formatPorcentaje(a.asistencia));
+  });
+}
+
+console.log("--- reduce: total faltas ---");
+console.log("Total acumulado:", totalFaltas(alumnos));
+
+console.log("--- Resumen completo ---");
+console.log(resumenGrupo(alumnos));`,
+}}
+pasosIncrementales={[
+"Ejecuta y lee que devuelven map, filter y reduce por separado.",
+"Cambia el umbral de filtrarEnRiesgo a 80% y observa cuantos alumnos aparecen.",
+"Agrega una funcion obtenerPorGrado(alumnos, grado) usando filter.",
+"Crea una funcion promedioAsistencia(alumnos) usando reduce directamente, sin calcularPromedio.",
+]}
+retoFinal="Encadena map y filter en una sola expresion: filtra los alumnos con mas de 80% de asistencia y mapea solo sus nombres formateados. Imprime el resultado."
+/>

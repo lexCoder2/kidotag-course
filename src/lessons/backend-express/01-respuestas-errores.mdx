@@ -1,0 +1,157 @@
+# Respuestas HTTP y manejo de errores
+
+El backend de kidotag10 sigue un patrón consistente para respuestas y errores.
+
+## Códigos de estado HTTP más usados en kidotag10
+
+| Código | Significado  | Cuándo kidotag10 lo usa             |
+| ------ | ------------ | ----------------------------------- |
+| 200    | OK           | GET, PUT, PATCH exitosos            |
+| 201    | Created      | POST que crea un recurso            |
+| 400    | Bad Request  | Campos requeridos faltantes         |
+| 401    | Unauthorized | Token ausente, inválido o expirado  |
+| 403    | Forbidden    | Token válido pero sin permiso (rol) |
+| 404    | Not Found    | Recurso no existe en BD             |
+| 500    | Server Error | Error inesperado del servidor       |
+
+## Patrón de respuesta de kidotag10
+
+```javascript
+// ✅ Siempre: { ok, data } en éxito o { ok, error } en error
+
+// Éxito:
+res.status(200).json({ ok: true, data: alumnos });
+res.status(201).json({ ok: true, data: nuevoAlumno });
+
+// Error de cliente (4xx):
+res.status(400).json({ ok: false, error: "EMAIL_REQUERIDO" });
+res.status(401).json({ ok: false, error: "TOKEN_INVALIDO" });
+res.status(403).json({ ok: false, error: "SIN_PERMISO" });
+res.status(404).json({ ok: false, error: "ALUMNO_NO_ENCONTRADO" });
+
+// Error de servidor (5xx):
+res.status(500).json({ ok: false, error: "ERROR_INTERNO" });
+```
+
+## Middleware de errores global
+
+```javascript
+// src/app.js de kidotag10
+// Debe ir DESPUÉS de todas las rutas
+
+app.use((err, req, res, next) => {
+  console.error("Error:", err.message);
+
+  // Errores de Mongoose
+  if (err.name === "ValidationError") {
+    return res.status(400).json({
+      ok: false,
+      error: "VALIDACION_FALLIDA",
+      detalles: Object.values(err.errors).map((e) => e.message),
+    });
+  }
+
+  if (err.code === 11000) {
+    // Error de duplicado (índice único violado)
+    return res.status(409).json({
+      ok: false,
+      error: "DUPLICADO",
+    });
+  }
+
+  // Error genérico
+  res.status(err.status || 500).json({
+    ok: false,
+    error: err.message || "ERROR_INTERNO",
+  });
+});
+```
+
+## Try/catch en controladores
+
+```javascript
+// Patrón estándar en todos los controladores de kidotag10
+async function listarAlumnos(req, res, next) {
+  try {
+    const alumnos = await Alumno.find({ escuela: req.usuario.escuelaId })
+      .populate("tutor", "nombre email")
+      .lean();
+
+    res.json({ ok: true, data: alumnos });
+  } catch (err) {
+    next(err); // ← pasar al middleware de errores global
+  }
+}
+```
+
+<Callout variante="tip" titulo="Usa códigos de error en string, no mensajes libres">
+  Devolver `{ error: 'TOKEN_EXPIRADO' }` en lugar de `{ error: 'El token ha expirado' }`
+  permite al frontend hacer lógica exacta: `if (json.error === 'TOKEN_EXPIRADO')`.
+  Los mensajes en lenguaje natural son inconsistentes y difíciles de manejar programáticamente.
+</Callout>
+
+<Quiz
+  preguntas={[
+    {
+      pregunta: "¿Cuál es la diferencia entre HTTP 401 y 403?",
+      opciones: [
+        { texto: "Son equivalentes — ambos significan error de autenticación" },
+        {
+          texto:
+            "401 = No autenticado (token ausente/inválido/expirado); 403 = Autenticado pero sin permiso (token válido pero el rol no tiene acceso)",
+          correcta: true,
+        },
+        { texto: "401 = Error del servidor; 403 = Error del cliente" },
+        { texto: "401 es para REST; 403 es para WebSockets" },
+      ],
+      explicacion:
+        "En kidotag10: un tutor con token válido que intenta acceder a /api/alumnos (solo para profesores) recibe 403 — está autenticado pero no autorizado. Un usuario sin token (o con token expirado) recibe 401.",
+    },
+    {
+      pregunta:
+        "¿Qué status HTTP se debe retornar cuando un alumno con ID válido no existe en la base de datos?",
+      opciones: [
+        { texto: "400 Bad Request — el ID es inválido" },
+        { texto: "404 Not Found — el recurso no existe", correcta: true },
+        { texto: "500 Internal Server Error" },
+        { texto: "204 No Content" },
+      ],
+      explicacion:
+        "404 comunica claramente que la petición fue bien formada pero el recurso no existe. 400 es para peticiones mal formadas. 404 en kidotag10: GET /api/alumnos/64ab999... cuando ese ObjectId no existe en MongoDB.",
+    },
+    {
+      pregunta: "¿Cuándo se debe usar el status 422 Unprocessable Entity?",
+      opciones: [
+        {
+          texto:
+            "Cuando el servidor no puede procesar la petición por sobrecarga",
+        },
+        {
+          texto:
+            "Cuando el formato de la petición es correcto (JSON válido) pero los datos no pasan la validación de negocio (ej: email inválido, campo requerido vacío)",
+          correcta: true,
+        },
+        { texto: "Cuando se envía texto plano en lugar de JSON" },
+        { texto: "Es sinónimo de 400" },
+      ],
+      explicacion:
+        "400 = JSON malformado o header incorrecto. 422 = JSON bien formado pero con datos inválidos según reglas de negocio. En kidotag10: enviar { nombre: '' } (vacío) en POST /api/alumnos debería retornar 422 con detalles de validación.",
+    },
+    {
+      pregunta:
+        "¿Por qué en producción el error 500 no debe incluir el stack trace en la respuesta?",
+      opciones: [
+        { texto: "Porque el stack trace es muy largo" },
+        {
+          texto:
+            "Porque expone rutas de archivos internos, versiones de librerías y lógica del servidor que un atacante puede usar para encontrar vulnerabilidades",
+          correcta: true,
+        },
+        { texto: "Para ahorrar ancho de banda" },
+        { texto: "El cliente no sabe interpretar stack traces" },
+      ],
+      explicacion:
+        "El error middleware de kidotag10 distingue entornos: en desarrollo retorna el stack para facilitar debug; en producción solo retorna un mensaje genérico 'Error interno del servidor'. Esto sigue el principio de mínima exposición de información.",
+    },
+  ]}
+/>
