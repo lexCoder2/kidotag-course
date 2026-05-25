@@ -261,7 +261,9 @@ export async function runVitestCheck(
     vi: {
       fn: (impl?: (...args: unknown[]) => unknown) => {
         const mock = (...args: unknown[]) => impl?.(...args);
-        (mock as Record<string, unknown>).mock = { calls: [] as unknown[][] };
+        (mock as unknown as Record<string, unknown>).mock = {
+          calls: [] as unknown[][],
+        };
         return mock;
       },
       spyOn: () => ({ mockReturnValue: () => {} }),

@@ -418,8 +418,7 @@ const mongoose = {
     return ModelFn as unknown as MockModel;
   },
 
-  connect: (_uri: string): Promise<typeof mongoose> =>
-    Promise.resolve(mongoose),
+  connect: (_uri: string): Promise<unknown> => Promise.resolve(mongoose),
   disconnect: (): Promise<void> => Promise.resolve(),
 
   connection: {

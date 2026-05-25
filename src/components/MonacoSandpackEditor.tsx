@@ -107,7 +107,7 @@ function FilteredConsole({ style }: { style?: React.CSSProperties }) {
 
   const filtered = logs.filter((log) => {
     if (log.method === "warn") {
-      const text = log.data
+      const text = (log.data ?? [])
         .map((d) => (typeof d === "string" ? d : JSON.stringify(d)))
         .join(" ");
       if (HIDDEN_WARNINGS.some((f) => text.includes(f))) return false;
@@ -182,7 +182,7 @@ function FilteredConsole({ style }: { style?: React.CSSProperties }) {
           </div>
         )}
         {filtered.map((log) => {
-          const text = log.data
+          const text = (log.data ?? [])
             .map((d) =>
               typeof d === "string" ? d : JSON.stringify(d, null, 2),
             )
