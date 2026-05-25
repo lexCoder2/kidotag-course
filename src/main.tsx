@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { MDXProvider } from "@mdx-js/react";
 import { mdxComponents } from "@/utils/mdxComponents";
 import "./index.css";
+import "./App.css";
 import App from "./App.tsx";
 
 // Restore URLs redirected by public/404.html on GitHub Pages.
