@@ -1,6 +1,12 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
-import { ArrowLeft, ArrowRight, BookOpenText, CheckCircle2, Clock3 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpenText,
+  CheckCircle2,
+  Clock3,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import type { useProgress } from "@/hooks/useProgress";
 import type { Leccion, Bloque } from "@/data/curriculum";
@@ -70,9 +76,14 @@ export function LessonRenderer({ leccion, progress }: Props) {
 
   const mdxKey = `../lessons/${leccion.bloque.id}/${leccion.slug}.mdx`;
   const mdxLoader = LECCIONES_MDX[mdxKey];
-  const MdxComponent = mdxLoader
-    ? lazy(mdxLoader as () => Promise<{ default: ComponentType }>)
-    : null;
+  const MdxComponent = useMemo(
+    () =>
+      mdxLoader
+        ? lazy(mdxLoader as () => Promise<{ default: ComponentType }>)
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mdxKey],
+  );
 
   useEffect(() => {
     setLeccionLeida(estaLeccionLeida(leccion.slug));
@@ -130,7 +141,8 @@ export function LessonRenderer({ leccion, progress }: Props) {
     <article className="lesson">
       <div className="lesson-meta">
         <div className="lesson-breadcrumb">
-          <AppIcon token={leccion.bloque.icono} size={14} /> {leccion.bloque.titulo} / {leccion.titulo}
+          <AppIcon token={leccion.bloque.icono} size={14} />{" "}
+          {leccion.bloque.titulo} / {leccion.titulo}
         </div>
         <div className="lesson-tags">
           {leccion.tags.map((t) => (
@@ -159,7 +171,8 @@ export function LessonRenderer({ leccion, progress }: Props) {
         ) : (
           <div className="lesson-placeholder">
             <p>
-              <BookOpenText size={14} aria-hidden="true" /> Esta lección está en desarrollo.
+              <BookOpenText size={14} aria-hidden="true" /> Esta lección está en
+              desarrollo.
             </p>
             <p>Crea el archivo para activarla:</p>
             <code className="lesson-placeholder-path">
@@ -177,7 +190,8 @@ export function LessonRenderer({ leccion, progress }: Props) {
             disabled={!anterior}
             title="tecla flecha izquierda"
           >
-            <ArrowLeft size={14} aria-hidden="true" /> {anterior ? anterior.titulo : "Inicio"}
+            <ArrowLeft size={14} aria-hidden="true" />{" "}
+            {anterior ? anterior.titulo : "Inicio"}
           </button>
           <button
             className={`completar-btn${completada ? " completada" : ""}`}
@@ -229,7 +243,8 @@ export function LessonRenderer({ leccion, progress }: Props) {
             disabled={!siguiente}
             title="tecla flecha derecha"
           >
-            {siguiente ? siguiente.titulo : "Fin del curso"} <ArrowRight size={14} aria-hidden="true" />
+            {siguiente ? siguiente.titulo : "Fin del curso"}{" "}
+            <ArrowRight size={14} aria-hidden="true" />
           </button>
         </div>
         <div className="lesson-nav-hint">

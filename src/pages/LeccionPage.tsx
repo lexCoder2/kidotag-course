@@ -15,5 +15,5 @@ export function LeccionPage({ progress }: Props) {
     return <Navigate to="/" replace />;
   }
 
-  return <LessonRenderer leccion={resultado} progress={progress} />;
+  return <LessonRenderer key={slug} leccion={resultado} progress={progress} />;
 }
