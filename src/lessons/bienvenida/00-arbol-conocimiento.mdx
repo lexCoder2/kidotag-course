@@ -1,0 +1,699 @@
+# Árbol de Conocimiento del Curso
+
+Este árbol muestra **todos los conceptos del curso** y las relaciones de prerequisito entre ellos: qué necesitas entender primero para que el siguiente concepto tenga sentido. Úsalo como mapa de orientación en cualquier momento del curso.
+
+<Callout variante="tip" titulo="Cómo leer este árbol">
+  Las flechas significan **"es necesario para entender"**. Empieza desde la base
+  (JavaScript) y sube. Los nodos en **gris claro** son conocimientos que se
+  asumen como prerequisito externo al curso.
+</Callout>
+
+---
+
+## Vista general: ruta de aprendizaje
+
+<Mermaid
+  titulo="Ruta de aprendizaje — módulos del curso"
+  diagrama={`graph LR
+  BV["🎓 Bienvenida"]
+  JS["🧠 JS / TS Fundamentos"]
+  BE["⚙️ Backend Express"]
+  MG["🍃 MongoDB & Mongoose"]
+  AU["🔐 Auth JWT & bcrypt"]
+  SW["📖 Swagger / OpenAPI"]
+  RF["⚛️ React Fundamentos"]
+  WA["🔗 Integración Web ↔ API"]
+  RA["🚀 React Avanzado"]
+  SO["⚡ Socket.IO"]
+  ST["🎨 Estilos & UX"]
+  CP["🏆 Capstone"]
+
+BV --> JS
+JS --> BE
+BE --> MG
+MG --> AU
+AU --> SW
+JS --> RF
+RF --> WA
+AU --> WA
+WA --> RA
+BE --> SO
+RA --> SO
+RA --> ST
+SO --> CP
+ST --> CP
+AU --> CP
+`}
+/>
+
+---
+
+## Capa 0 — Prerequisitos externos
+
+Estos conceptos **no se enseñan en el curso** pero son necesarios antes de empezar. El módulo de setup los menciona brevemente.
+
+<Mermaid
+  titulo="Prerequisitos externos al curso"
+  diagrama={`graph TD
+  CLI["💻 Terminal & CLI\n(cd, ls, mkdir, variables de entorno)"]
+  GIT["🔀 Git básico\n(clone, add, commit, push, branches)"]
+  HTML["🏗️ HTML básico\n(etiquetas, DOM, estructura de página)"]
+  CSS["🎨 CSS básico\n(selectores, box model, colores, unidades)"]
+  NET["🌐 Modelo cliente-servidor\n(request, response, URL, dominio, puerto)"]
+  BROW["🖥️ APIs del navegador\n(localStorage, sessionStorage, cookies)"]
+
+CLI --> GIT
+HTML --> CSS
+NET --> CLI
+`}
+/>
+
+| Concepto                                                             | Por qué lo necesitas                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------- |
+| <WikiLink term="cli">Terminal & CLI</WikiLink>                       | Ejecutar `node`, `npm`, scripts del proyecto            |
+| <WikiLink term="git">Git básico</WikiLink>                           | Clonar el repo de kidotag10 y gestionar versiones       |
+| <WikiLink term="html">HTML básico</WikiLink>                         | JSX es HTML dentro de JS; necesitas reconocer etiquetas |
+| <WikiLink term="css">CSS básico</WikiLink>                           | Antes de CSS variables y responsive design              |
+| <WikiLink term="cliente-servidor">Modelo cliente-servidor</WikiLink> | Base de todo HTTP, REST y WebSockets                    |
+| <WikiLink term="localstorage">APIs del navegador</WikiLink>          | `localStorage` para guardar el token JWT                |
+
+---
+
+## Capa 1 — JavaScript y TypeScript Fundamentos
+
+<Mermaid
+  titulo="Árbol de conocimiento: JS / TS"
+  diagrama={`graph TD
+  ALG["🧩 Pensamiento algorítmico\n(pasos, condiciones, repetición)"]
+  V["Variables & Tipos\nlet, const, string, number, boolean, null, undefined"]
+  C["Condicionales & Bucles\nif/else, switch, for, while"]
+  F["Funciones & Arrow Functions\nparámetros, return, () => {}"]
+  AO["Arrays & Objetos\n[], {}, acceso, modificación"]
+  MAR["Métodos de array\nmap, filter, reduce, find, some"]
+  ASY["Promesas & async/await\nnew Promise, .then, async fn, await, try/catch"]
+  FET["Fetch básico\nfetch, Response.json, métodos HTTP"]
+  TS1["TypeScript básico\ntipos primitivos, interfaces, type aliases, enums"]
+  TS2["TypeScript en React\nFC<Props>, useState<T>, event types"]
+
+ALG --> V
+V --> C
+V --> F
+C --> AO
+F --> AO
+AO --> MAR
+F --> ASY
+ASY --> FET
+V --> TS1
+TS1 --> TS2
+F --> TS2
+`}
+/>
+
+| Término                                                 | Definición                                                                                                       |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| <WikiLink term="hoisting">Hoisting</WikiLink>           | Variables y funciones declaradas con `var`/`function` se "suben" al inicio de su scope en tiempo de compilación. |
+| <WikiLink term="closure">Closure</WikiLink>             | Una función que recuerda el scope donde fue creada, aunque se ejecute en otro contexto.                          |
+| <WikiLink term="event-loop">Event loop</WikiLink>       | El mecanismo de Node.js y el navegador que permite ejecutar código asíncrono sin bloquear el hilo principal.     |
+| <WikiLink term="typescript">Type inference</WikiLink>   | TypeScript deduce el tipo de una variable automáticamente a partir de su valor inicial.                          |
+| <WikiLink term="destructuring">Destructuring</WikiLink> | Extraer valores de arrays u objetos directamente en variables: `const { name } = user`.                          |
+| <WikiLink term="spread">Spread operator</WikiLink>      | Expandir un array u objeto: `[...arr]`, `{ ...obj }`. Muy usado en React para no mutar estado.                   |
+
+---
+
+## Capa 2 — Backend con Node.js y Express
+
+<Mermaid
+  titulo="Árbol de conocimiento: Backend Express"
+  diagrama={`graph TD
+  ASY["async/await & Promesas"]
+  CLI2["Terminal & CLI"]
+  NODE["Node.js & npm\nModules CommonJS, package.json, scripts, nodemon"]
+  HTTP["HTTP: verbos, status codes, headers\nGET POST PUT DELETE · 200 201 400 401 404 500"]
+  REST["REST: recursos, convenciones, idempotencia\n/api/alumnos · /api/alumnos/:id"]
+  EXP["Express: app, req, res, rutas\nexpress(), app.get, app.post, app.listen"]
+  MW["Middlewares: next, cors, express.json\n(req, res, next) => {} · orden importa"]
+  CORS["CORS: Same-Origin Policy, preflight\nAccess-Control-Allow-Origin"]
+  ENV["Variables de entorno & dotenv\n.env, process.env, 12-factor app"]
+  MVC["Arquitectura MVC\nroutes → controllers → models → middlewares"]
+  ERR["Respuestas normalizadas & error handler\n{ ok, data, error } · error middleware global"]
+
+ASY --> NODE
+CLI2 --> NODE
+NODE --> HTTP
+HTTP --> REST
+REST --> EXP
+EXP --> MW
+MW --> CORS
+NODE --> ENV
+MW --> MVC
+ENV --> MVC
+MVC --> ERR
+`}
+/>
+
+<Callout variante="info" titulo="Concepto clave: el ciclo req → res">
+  En Express cada petición HTTP entra como objeto `req` y debe salir con una
+  respuesta `res`. Los middlewares son funciones que procesan ese par antes de
+  llegar al controlador final. Si llamas `next()` pasas al siguiente; si llamas
+  `res.json()` terminas el ciclo.
+</Callout>
+
+---
+
+## Capa 3 — MongoDB y Mongoose
+
+<Mermaid
+  titulo="Árbol de conocimiento: MongoDB & Mongoose"
+  diagrama={`graph TD
+  REST2["REST API & Express funcionando"]
+  DB0["Conceptos de base de datos\ntablas, filas, columnas, queries"]
+  MG1["MongoDB: documentos & colecciones\nBSON, ObjectId, Compass, NoSQL vs SQL"]
+  MG2["Conectar Mongoose\nmongoose.connect, URI, manejo de errores de conexión"]
+  MG3["Schemas & validadores\nrequired, unique, enum, trim, default, min/max"]
+  MG4["Referencias vs documentos embebidos\nref: 'Tutor' vs subdocumentos { nombre, telefono }"]
+  MG5["Hooks pre-save\npre, isModified, integración con bcrypt"]
+  MG6["populate: joins virtuales\n.populate('tutor'), select de campos, anidado"]
+  MG7["Índices & rendimiento\nindex: true, compuestos, explain()"]
+  MG8["Operadores avanzados\n$addToSet, $in, rangos de fecha, .lean(), Promise.all"]
+
+REST2 --> MG1
+DB0 --> MG1
+MG1 --> MG2
+MG2 --> MG3
+MG3 --> MG4
+MG3 --> MG5
+MG4 --> MG6
+MG3 --> MG7
+MG3 --> MG8
+`}
+/>
+
+| Patrón de diseño   | Cuándo usarlo                                                       |
+| ------------------ | ------------------------------------------------------------------- |
+| Documento embebido | Datos que siempre se leen juntos (contacto de emergencia en Alumno) |
+| Referencia (`ref`) | Entidades independientes que se reutilizan (Tutor ↔ muchos Alumnos) |
+| Índice simple      | Campo que se filtra frecuentemente (`uid`, `email`)                 |
+| Índice compuesto   | Filtros combinados (`alumno + fecha` en Asistencia)                 |
+
+---
+
+## Capa 4 — Autenticación con JWT y bcrypt
+
+<Mermaid
+  titulo="Árbol de conocimiento: Auth JWT & bcrypt"
+  diagrama={`graph TD
+  MG5B["Hooks pre-save Mongoose"]
+  MW2["Middlewares Express"]
+  HTTP2["HTTP Headers & Base64URL"]
+  SEC["Seguridad web básica\nataques de diccionario, rainbow tables, XSS, CSRF"]
+  BROW2["APIs del navegador\nlocalStorage, sessionStorage, cookies"]
+
+PASS["Passwords seguros\nhash unidireccional, salt, por qué no MD5/SHA1"]
+BCR["bcrypt: salt, rounds, compare\nbcrypt.hash(), bcrypt.compare(), cost factor"]
+JWT1["Anatomía de un JWT\nheader.payload.signature · Base64URL · claims iss/exp/iat"]
+JWT2["Emitir tokens: loginUnificado\nbuscar usuario por tipo → verificar password → jwt.sign()"]
+JWT3["Middleware verificarToken\nBearer token del header → jwt.verify() → req.usuario"]
+RBAC["RBAC: control de acceso por roles\nesTutor(), esProfesor(), esAdmin() en cada ruta"]
+STORE["Almacenamiento del token\nlocalStorage vs sessionStorage vs cookies HttpOnly"]
+
+SEC --> PASS
+MG5B --> BCR
+PASS --> BCR
+HTTP2 --> JWT1
+BCR --> JWT2
+JWT1 --> JWT2
+MW2 --> JWT3
+JWT1 --> JWT3
+JWT3 --> RBAC
+JWT1 --> STORE
+SEC --> STORE
+BROW2 --> STORE
+`}
+/>
+
+<Callout variante="danger" titulo="Seguridad crítica">
+  Nunca guardes el secret de JWT ni passwords en el código fuente. Siempre usa
+  variables de entorno (`.env`). Un JWT firmado pero con un secret débil o
+  expuesto es tan inseguro como no tener autenticación.
+</Callout>
+
+---
+
+## Capa 5 — Documentación con Swagger / OpenAPI
+
+<Mermaid
+  titulo="Árbol de conocimiento: Swagger"
+  diagrama={`graph TD
+  REST3["REST API con endpoints definidos"]
+  JWT4["JWT Bearer token implementado"]
+
+OA["OpenAPI 3.0: estructura del spec\ninfo, servers, paths, components · YAML / JSON"]
+JSDOC["swagger-jsdoc: docs como código\nanotaciones JSDoc en rutas, swagger-jsdoc config"]
+SCH["Schemas reutilizables & seguridad\ncomponents/schemas, securitySchemes, Bearer JWT global"]
+UI["Swagger UI: explorador interactivo\nswagger-ui-express, personalización, prueba de endpoints"]
+
+REST3 --> OA
+JWT4 --> SCH
+OA --> JSDOC
+OA --> SCH
+JSDOC --> UI
+SCH --> UI
+`}
+/>
+
+---
+
+## Capa 6 — React Fundamentos
+
+<Mermaid
+  titulo="Árbol de conocimiento: React Fundamentos"
+  diagrama={`graph TD
+  HTML2["HTML básico"]
+  JS2B["Funciones & Arrow Functions JS"]
+  MAR2["map, filter, reduce"]
+  ASY2["async/await & Promesas"]
+  NODE2["Node.js & npm"]
+
+VITE["Vite: bundler, HMR, import.meta.env\nvite.config.ts, puertos, alias"]
+JSX["JSX & Componentes funcionales\nJSX = HTML en JS, transpilación, PascalCase"]
+USE_S["useState: estado local & re-renders\n[value, setValue], objetos de estado, batching"]
+USE_E["useEffect: efectos secundarios\ndependencias, cleanup, errores comunes"]
+PROPS["Props & Composición\ndatos hacia abajo, callbacks hacia arriba, children"]
+INPUTS["Inputs controlados & formularios\nvalue + onChange, show/hide password"]
+LISTS["Renderizado condicional & listas\n&&, ternario, .map() + key, fragmentos"]
+
+HTML2 --> JSX
+JS2B --> JSX
+NODE2 --> VITE
+JSX --> USE_S
+USE_S --> USE_E
+ASY2 --> USE_E
+JSX --> PROPS
+USE_S --> INPUTS
+MAR2 --> LISTS
+JSX --> LISTS
+`}
+/>
+
+| Término                                                   | Definición                                                                                                                               |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| <WikiLink term="reconciliacion">Reconciliación</WikiLink> | El algoritmo de React que compara el Virtual DOM anterior con el nuevo y aplica solo los cambios mínimos al DOM real.                    |
+| **Re-render**                                             | Cada vez que el estado o las props cambian, React vuelve a ejecutar la función del componente para calcular el nuevo JSX.                |
+| <WikiLink term="closure">Closure en hooks</WikiLink>      | Los valores capturados por `useEffect` o manejadores de eventos son los del render en que fueron creados — puede causar valores "stale". |
+| **Key en listas**                                         | React usa `key` para identificar qué elemento de una lista cambió. Debe ser único y estable — no uses el índice del array.               |
+
+---
+
+## Capa 7 — Integración Web ↔ API
+
+<Mermaid
+  titulo="Árbol de conocimiento: Integración Web-API"
+  diagrama={`graph TD
+  USE_E2["useEffect (React)"]
+  ASY3["async/await & Promesas"]
+  HTTP3["HTTP: verbos, headers, status codes"]
+  JWT5["JWT & Bearer token"]
+
+FETCH["Fetch API moderna\nfetch(), async/await, Response.json(), errores de red"]
+ABORT["AbortSignal & timeout\nAbortSignal.timeout(ms), AbortController, cancelar petición"]
+APICFG["api.config.js: capa de abstracción\ngetApiUrl(), getAuthHeaders(), apiGet/Post/Put/Delete"]
+BEARER["Bearer token en peticiones\nAuthorization header, flujo completo request → response"]
+POLL["Polling con setInterval & descarga\nsetInterval en useEffect, cleanup, Blob + URL.createObjectURL"]
+
+ASY3 --> FETCH
+HTTP3 --> FETCH
+USE_E2 --> FETCH
+FETCH --> ABORT
+FETCH --> APICFG
+JWT5 --> APICFG
+APICFG --> BEARER
+USE_E2 --> POLL
+APICFG --> POLL
+`}
+/>
+
+---
+
+## Capa 8 — React Avanzado
+
+<Mermaid
+  titulo="Árbol de conocimiento: React Avanzado"
+  diagrama={`graph TD
+  USE_S2["useState"]
+  PROPS2["Props & Composición"]
+  USE_E3["useEffect"]
+  JWT6["JWT token storage (cliente)"]
+  APICFG2["api.config.js"]
+
+CTX["Context API: estado global\ncreateContext, Provider, useContext"]
+ACTX["AuthContext: análisis completo\nuser, token, loading, login(), logout(), polling mensajes"]
+CHOOK["Custom hooks: useAuth()\nnaming 'use', guard de provider, separar lógica de UI"]
+RR["React Router 6\nBrowserRouter, Routes, Route, Link, useNavigate, useParams"]
+PROT["Rutas protegidas\nProtectedRoute, isAuthenticated(), Navigate, loading state"]
+DASH["Dashboard con navegación por estado\nsetState(seccionActiva), trade-offs vs React Router"]
+
+USE_S2 --> CTX
+PROPS2 --> CTX
+CTX --> ACTX
+JWT6 --> ACTX
+APICFG2 --> ACTX
+CTX --> CHOOK
+USE_E3 --> CHOOK
+PROPS2 --> RR
+RR --> PROT
+ACTX --> PROT
+USE_S2 --> DASH
+RR --> DASH
+`}
+/>
+
+---
+
+## Capa 9 — Tiempo real con Socket.IO
+
+<Mermaid
+  titulo="Árbol de conocimiento: Socket.IO"
+  diagrama={`graph TD
+  HTTP4["HTTP & REST funcionando"]
+  EXP2["Express: app, req, res"]
+  USE_E4["useEffect en React"]
+
+WS["WebSockets vs Polling vs SSE\npersistencia de conexión, cuándo usar cada estrategia"]
+SRV["Servidor Socket.IO en Express\nhttp.createServer() + new Server(io), app.set('io')"]
+EVT["Eventos, rooms y broadcasting\nio.emit, socket.on, rooms para grupos, broadcast.emit"]
+CLI_SO["Cliente socket.io-client en React\nuseEffect conectar/desconectar, listener nueva-asistencia"]
+
+HTTP4 --> WS
+EXP2 --> SRV
+WS --> SRV
+SRV --> EVT
+USE_E4 --> CLI_SO
+EVT --> CLI_SO
+`}
+/>
+
+<Callout variante="info" titulo="¿Por qué Socket.IO y no WebSocket puro?">
+  Socket.IO añade **reconexión automática**, **rooms**, **namespaces**,
+  **fallback a polling HTTP** y un protocolo de eventos nombrados. Para
+  kidotag10 es ideal porque los tutores pueden reconectarse sin perder eventos y
+  las aulas pueden estar en rooms separadas.
+</Callout>
+
+---
+
+## Capa 10 — Estilos y Experiencia de Usuario
+
+<Mermaid
+  titulo="Árbol de conocimiento: Estilos & UX"
+  diagrama={`graph TD
+  CSS2["CSS básico\nselectores, box model, herencia"]
+  USE_S3["useState (React)"]
+  JSX2["JSX & Componentes"]
+
+CSSVAR["CSS Variables & Theming\n--color-*, var(), herencia en el DOM, design tokens"]
+RESP["Responsive mobile-first\nbreakpoints 768px/1024px, Flexbox, sidebar overlay"]
+UIST["Estados de interfaz\nloading spinner, error user-friendly, empty state, feedback"]
+
+CSS2 --> CSSVAR
+CSSVAR --> RESP
+USE_S3 --> UIST
+JSX2 --> UIST
+`}
+/>
+
+---
+
+## Capa 11 — Capstone: flujo end-to-end
+
+<Mermaid
+  titulo="Árbol de conocimiento: Capstone"
+  diagrama={`graph TD
+  SO2["Socket.IO cliente & servidor"]
+  AU2B["Auth JWT & RBAC"]
+  MG8B["MongoDB operadores avanzados"]
+  WA2["Integración Web-API (Fetch, Blob)"]
+  BE2B["Respuestas normalizadas & errores"]
+
+NFC["ESP32 → API → Socket.IO → React\nUID NFC → POST /asistencias → Mongoose → io.emit → React re-render"]
+EXCEL["Exportar Excel con xlsx\nworksheets, MIME type, Content-Disposition, apiDownload()"]
+
+SO2 --> NFC
+AU2B --> NFC
+MG8B --> NFC
+WA2 --> EXCEL
+BE2B --> EXCEL
+`}
+/>
+
+---
+
+## Árbol completo: prerequisitos de todo el curso
+
+Este es el mapa maestro que conecta todos los conceptos. Los nodos con borde discontinuo son prerequisitos externos al curso.
+
+<Mermaid
+  titulo="Árbol maestro de conocimiento — KidoTag Course"
+  diagrama={`graph TD
+  classDef ext fill:#e5e7eb,stroke:#9ca3af,stroke-dasharray:5 5,color:#374151
+  classDef js fill:#fef3c7,stroke:#d97706,color:#92400e
+  classDef be fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef db fill:#d1fae5,stroke:#059669,color:#065f46
+  classDef au fill:#fde68a,stroke:#d97706,color:#78350f
+  classDef rf fill:#cffafe,stroke:#0891b2,color:#164e63
+  classDef ra fill:#fce7f3,stroke:#db2777,color:#831843
+  classDef so fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+  classDef cp fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+
+CLI["Terminal & CLI"]:::ext
+GIT["Git básico"]:::ext
+HTML["HTML básico"]:::ext
+CSS["CSS básico"]:::ext
+NET["Modelo cliente-servidor"]:::ext
+DB0["Conceptos de BD"]:::ext
+SEC["Seguridad web básica"]:::ext
+BROW["APIs del navegador"]:::ext
+
+V["Variables & Tipos JS"]:::js
+C["Condicionales & Bucles"]:::js
+F["Funciones & Arrow Fn"]:::js
+AO["Arrays & Objetos"]:::js
+MAR["map / filter / reduce"]:::js
+ASY["Promesas & async/await"]:::js
+TS1["TS: Tipos Básicos"]:::js
+TS2["TS en React"]:::js
+
+NODE["Node.js & npm"]:::be
+HTTP["HTTP & REST"]:::be
+EXP["Express básico"]:::be
+MW["Middlewares"]:::be
+ENV["dotenv & .env"]:::be
+MVC["Arquitectura MVC"]:::be
+ERR["Respuestas & errores"]:::be
+
+MG1["MongoDB docs & colecciones"]:::db
+MG2["Mongoose: conectar"]:::db
+MG3["Schemas & validadores"]:::db
+MG4["Referencias vs embebidos"]:::db
+MG5["Hooks pre-save"]:::db
+MG6["populate"]:::db
+MG7["Índices & rendimiento"]:::db
+MG8["Operadores avanzados"]:::db
+
+PASS["Passwords & hashing"]:::au
+BCR["bcrypt"]:::au
+JWT1["Anatomía JWT"]:::au
+JWT2["Emitir tokens"]:::au
+JWT3["verificarToken MW"]:::au
+RBAC["RBAC roles"]:::au
+STORE["Token storage"]:::au
+
+VITE["Vite setup"]:::rf
+JSX["JSX & Componentes"]:::rf
+USE_S["useState"]:::rf
+USE_E["useEffect"]:::rf
+PROPS["Props & Composición"]:::rf
+INPUTS["Inputs controlados"]:::rf
+LISTS["Listas & condicional"]:::rf
+
+FETCH["Fetch API"]:::rf
+ABORT["AbortSignal"]:::rf
+APICFG["api.config.js"]:::rf
+BEARER["Bearer token"]:::rf
+POLL["Polling & descarga"]:::rf
+
+CTX["Context API"]:::ra
+ACTX["AuthContext"]:::ra
+CHOOK["Custom hooks"]:::ra
+RR["React Router 6"]:::ra
+PROT["Rutas protegidas"]:::ra
+DASH["Dashboard pattern"]:::ra
+CSSVAR["CSS Variables"]:::ra
+RESP["Responsive"]:::ra
+UIST["Estados UI"]:::ra
+
+WS["WebSockets vs REST"]:::so
+SRV["Servidor Socket.IO"]:::so
+EVT["Rooms & broadcast"]:::so
+CLI_SO["Cliente React"]:::so
+
+NFC["Flujo NFC end-to-end"]:::cp
+EXCEL["Exportar Excel"]:::cp
+
+CLI --> NODE
+GIT --> NODE
+NET --> HTTP
+V --> C
+V --> F
+C --> AO
+F --> AO
+AO --> MAR
+F --> ASY
+ASY --> NODE
+V --> TS1
+TS1 --> TS2
+F --> TS2
+USE_S --> TS2
+NODE --> HTTP
+HTTP --> EXP
+EXP --> MW
+NODE --> ENV
+MW --> MVC
+ENV --> MVC
+MVC --> ERR
+NODE --> MG1
+DB0 --> MG1
+MG1 --> MG2
+MG2 --> MG3
+MG3 --> MG4
+MG3 --> MG5
+MG4 --> MG6
+MG3 --> MG7
+MG3 --> MG8
+SEC --> PASS
+MG5 --> BCR
+PASS --> BCR
+HTTP --> JWT1
+BCR --> JWT2
+JWT1 --> JWT2
+MW --> JWT3
+JWT1 --> JWT3
+JWT3 --> RBAC
+JWT1 --> STORE
+SEC --> STORE
+BROW --> STORE
+HTML --> JSX
+F --> JSX
+NODE --> VITE
+JSX --> USE_S
+USE_S --> USE_E
+ASY --> USE_E
+JSX --> PROPS
+USE_S --> INPUTS
+MAR --> LISTS
+JSX --> LISTS
+ASY --> FETCH
+HTTP --> FETCH
+USE_E --> FETCH
+FETCH --> ABORT
+FETCH --> APICFG
+STORE --> APICFG
+APICFG --> BEARER
+USE_E --> POLL
+APICFG --> POLL
+USE_S --> CTX
+PROPS --> CTX
+CTX --> ACTX
+STORE --> ACTX
+APICFG --> ACTX
+CTX --> CHOOK
+USE_E --> CHOOK
+JSX --> RR
+RR --> PROT
+ACTX --> PROT
+USE_S --> DASH
+RR --> DASH
+CSS --> CSSVAR
+CSSVAR --> RESP
+USE_S --> UIST
+JSX --> UIST
+HTTP --> WS
+EXP --> SRV
+WS --> SRV
+SRV --> EVT
+USE_E --> CLI_SO
+EVT --> CLI_SO
+CLI_SO --> NFC
+RBAC --> NFC
+MG8 --> NFC
+POLL --> EXCEL
+ERR --> EXCEL
+`}
+/>
+
+---
+
+## Resumen de conceptos adicionales recomendados
+
+Estos conceptos complementan el curso y se recomiendan para profundizar:
+
+| Área      | Concepto                                                       | Por qué importa                                 |
+| --------- | -------------------------------------------------------------- | ----------------------------------------------- |
+| JS        | <WikiLink term="closure">Closures & scope</WikiLink>           | Entender bugs en useEffect y event handlers     |
+| JS        | <WikiLink term="event-loop">Event loop & microtasks</WikiLink> | Depurar código async complejo                   |
+| JS        | <WikiLink term="modulos">Módulos ES (import/export)</WikiLink> | Diferencia con CommonJS en Node.js              |
+| TS        | Generics `<T>`                                                 | Funciones reutilizables con tipos seguros       |
+| TS        | Utility types (`Partial`, `Pick`, `Omit`)                      | Transformar tipos existentes en modelos         |
+| HTTP      | Cookies HttpOnly & SameSite                                    | Alternativa segura a localStorage para tokens   |
+| HTTP      | HTTPS & TLS                                                    | Cifrado en tránsito, obligatorio en producción  |
+| Seguridad | OWASP Top 10                                                   | Los 10 riesgos de seguridad más comunes en APIs |
+| BD        | Transactions en MongoDB                                        | Operaciones atómicas multi-documento            |
+| BD        | Aggregation pipeline                                           | Estadísticas y reportes complejos               |
+| React     | <WikiLink term="hooks">useMemo & useCallback</WikiLink>        | Optimización de rendimiento                     |
+| React     | React.lazy & Suspense                                          | Code splitting para apps grandes                |
+| DevOps    | Docker básico                                                  | Empaquetar la app para producción               |
+| DevOps    | Variables de entorno en producción                             | Diferencia entre `.env` dev y secrets en CI/CD  |
+| Hardware  | Protocolo NFC/ISO 14443                                        | Cómo el ESP32 lee las tarjetas y genera el UID  |
+
+<Quiz
+  preguntas={[
+    {
+      pregunta:
+        "¿Qué módulo del curso debes completar ANTES de estudiar Autenticación con JWT?",
+      opciones: [
+        "React Fundamentos",
+        "MongoDB & Mongoose",
+        "Socket.IO",
+        "Estilos & UX",
+      ],
+      correcta: 1,
+      explicacion:
+        "JWT usa bcrypt que se integra en los hooks pre-save de Mongoose. Además, necesitas entender Express y middlewares para implementar verificarToken.",
+    },
+    {
+      pregunta:
+        "¿Qué concepto de JavaScript es fundamental para entender useEffect en React?",
+      opciones: [
+        "Variables let y const",
+        "Promesas y async/await",
+        "Condicionales if/else",
+        "Tipos en TypeScript",
+      ],
+      correcta: 1,
+      explicacion:
+        "useEffect ejecuta código asíncrono como llamadas a APIs. Sin entender Promesas y async/await, los errores de useEffect son difíciles de depurar.",
+    },
+    {
+      pregunta:
+        "Para implementar el flujo NFC end-to-end del Capstone, ¿cuál es la capa que conecta el backend con el frontend en tiempo real?",
+      opciones: [
+        "Fetch API con polling",
+        "React Router",
+        "Socket.IO",
+        "CSS Variables",
+      ],
+      correcta: 2,
+      explicacion:
+        "El ESP32 envía el UID al backend via HTTP, Mongoose guarda la asistencia, y Socket.IO emite el evento 'nueva-asistencia' al frontend React instantáneamente.",
+    },
+  ]}
+/>

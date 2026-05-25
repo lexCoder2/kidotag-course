@@ -183,7 +183,7 @@ const RUTAS = [
 { label: 'GET /alumnos (con token)', fn: () => getAlumnos({}, 'Bearer token-valido') },
 { label: 'GET /alumnos?grado=3A', fn: () => getAlumnos({ grado: '3A' }, 'Bearer token-valido') },
 { label: 'POST /alumnos (nuevo)', fn: () => crearAlumno({ nombre: 'Sara Ríos', matricula: '2024-003', grado: '1A' }, 'Bearer token-valido') },
-{ label: 'POST /alumnos (duplicado)',fn: () => crearAlumno({ nombre: 'Otro', matricula: '2024-001' }, 'Bearer token-valido') },
+{ label: 'POST /alumnos (duplicado)', fn: () => crearAlumno({ nombre: 'Otro', matricula: '2024-001' }, 'Bearer token-valido') },
 { label: 'GET /alumnos (sin token)', fn: () => getAlumnos({}, '') },
 ]
 

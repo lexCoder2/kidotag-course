@@ -812,6 +812,263 @@ export const GLOSSARY: GlossaryEntry[] = [
       },
     ],
   },
+  // ── Nuevas entradas wiki ─────────────────────────────────────────────────
+  {
+    key: "git",
+    titulo: "Git",
+    descripcionCorta:
+      "Sistema de control de versiones distribuido para rastrear cambios en el código.",
+    descripcionLarga:
+      "Git permite guardar el historial completo de tu proyecto, trabajar en ramas paralelas y colaborar con otros desarrolladores sin pisar el código ajeno. Los comandos básicos son git init, git add, git commit, git push y git pull. Con Git puedes revertir errores, comparar versiones y mantener código en producción mientras desarrollas nuevas funciones.",
+    ejemplo:
+      "En KidoTag usas git commit -m 'feat: registro NFC de asistencia' para guardar cada avance, y git push para subir el código al repositorio compartido del equipo.",
+    videos: [
+      {
+        titulo: "Git y GitHub desde cero en español",
+        url: "https://www.youtube.com/results?search_query=git+github+desde+cero+espanol",
+      },
+    ],
+  },
+  {
+    key: "cli",
+    titulo: "CLI (Interfaz de Línea de Comandos)",
+    descripcionCorta:
+      "Terminal de texto para ejecutar programas y navegar el sistema de archivos.",
+    descripcionLarga:
+      "La CLI (Command Line Interface) permite interactuar con el sistema operativo escribiendo comandos de texto en lugar de hacer clics. Es fundamental para un desarrollador: ejecutas npm install, inicias servidores con node index.js, navegas entre carpetas con cd y creas archivos con touch. Dominar la terminal acelera enormemente el flujo de trabajo.",
+    ejemplo:
+      "En KidoTag abrís la terminal, vas a la carpeta api/ con cd kidotag10/api y ejecutás npm run dev para arrancar el servidor Express en modo desarrollo.",
+    videos: [
+      {
+        titulo: "Terminal y línea de comandos para principiantes",
+        url: "https://www.youtube.com/results?search_query=terminal+linea+comandos+principiantes+espanol",
+      },
+    ],
+  },
+  {
+    key: "html",
+    titulo: "HTML",
+    descripcionCorta:
+      "Lenguaje de marcado que define la estructura de las páginas web.",
+    descripcionLarga:
+      "HTML (HyperText Markup Language) usa etiquetas como <div>, <p>, <h1>, <form> y <button> para dar estructura semántica al contenido. Aunque en React trabajas con JSX (que se parece a HTML), el resultado final siempre es HTML que interpreta el navegador. Entender HTML te ayuda a construir componentes accesibles y semánticamente correctos.",
+    ejemplo:
+      "El panel de asistencias de KidoTag es en el fondo un <table> HTML con filas <tr> por alumno, aunque en React lo escribís como JSX con map() sobre el array de alumnos.",
+    videos: [
+      {
+        titulo: "HTML desde cero en español",
+        url: "https://www.youtube.com/results?search_query=html+desde+cero+espanol",
+      },
+    ],
+  },
+  {
+    key: "cliente-servidor",
+    titulo: "Arquitectura Cliente-Servidor",
+    descripcionCorta:
+      "Modelo donde el cliente solicita recursos y el servidor los provee.",
+    descripcionLarga:
+      "En la arquitectura cliente-servidor, el cliente (navegador, app móvil, ESP32) envía peticiones HTTP y el servidor (Node.js/Express) las procesa y devuelve respuestas. Son procesos separados que se comunican por la red. Esta separación permite escalar cada parte independientemente y reutilizar el mismo backend para múltiples clientes.",
+    ejemplo:
+      "En KidoTag el ESP32 (cliente) envía el UID de la tarjeta NFC al servidor Express (servidor) mediante un POST /api/asistencias. El servidor consulta MongoDB y responde con el nombre del alumno.",
+    videos: [
+      {
+        titulo: "Arquitectura cliente servidor explicada",
+        url: "https://www.youtube.com/results?search_query=arquitectura+cliente+servidor+explicada+espanol",
+      },
+    ],
+  },
+  {
+    key: "hoisting",
+    titulo: "Hoisting",
+    descripcionCorta:
+      "Comportamiento de JavaScript que mueve declaraciones al tope del ámbito.",
+    descripcionLarga:
+      "Hoisting es el mecanismo por el que JavaScript 'eleva' las declaraciones de variables (var) y funciones al inicio de su ámbito antes de ejecutar el código. Las funciones declaradas con function son completamente hoisted (puedes llamarlas antes de declararlas), mientras que var se eleva pero no su valor. let y const no son hoisted de la misma forma y causan un error si se usan antes de declararse.",
+    ejemplo:
+      "Si en un archivo de utilidades usás function calcularXP(){...} al final del archivo pero la invocás al principio, funciona por hoisting. Con const calcularXP = () => {...} tendrías un error.",
+    videos: [
+      {
+        titulo: "Hoisting en JavaScript explicado",
+        url: "https://www.youtube.com/results?search_query=hoisting+javascript+espanol",
+      },
+    ],
+  },
+  {
+    key: "closure",
+    titulo: "Closure",
+    descripcionCorta:
+      "Función que recuerda las variables del ámbito donde fue creada.",
+    descripcionLarga:
+      "Un closure ocurre cuando una función interna tiene acceso a variables de su función externa incluso después de que esta última haya terminado de ejecutarse. Es la base de muchos patrones en JavaScript: módulos, callbacks con estado, hooks de React. Cada llamada a useState internamente usa closures para mantener el valor del estado entre renders.",
+    ejemplo:
+      "El hook useProgress() retorna funciones que 'cierran' sobre el estado interno del progreso. Cuando llamás incrementarXP(), esa función recuerda y modifica el estado gracias a los closures.",
+    videos: [
+      {
+        titulo: "Closures en JavaScript en español",
+        url: "https://www.youtube.com/results?search_query=closures+javascript+espanol",
+      },
+    ],
+  },
+  {
+    key: "event-loop",
+    titulo: "Event Loop",
+    descripcionCorta:
+      "Mecanismo que permite a JavaScript ejecutar código asíncrono sin bloquear.",
+    descripcionLarga:
+      "JavaScript es single-threaded (un solo hilo), pero el Event Loop le permite manejar operaciones asíncronas como peticiones de red o timers sin bloquear la ejecución. Cuando usás await fetch(), el hilo continúa ejecutando otro código mientras espera la respuesta. Al completarse, la respuesta se coloca en la cola de microtareas y el Event Loop la procesa.",
+    ejemplo:
+      "Cuando el panel de KidoTag carga la lista de alumnos con await fetch('/api/alumnos'), el Event Loop permite que la UI siga respondiendo a clicks mientras espera los datos del servidor.",
+    videos: [
+      {
+        titulo: "Event Loop de JavaScript en español",
+        url: "https://www.youtube.com/results?search_query=event+loop+javascript+espanol",
+      },
+    ],
+  },
+  {
+    key: "destructuring",
+    titulo: "Destructuring",
+    descripcionCorta:
+      "Sintaxis para extraer valores de arrays u objetos en variables individuales.",
+    descripcionLarga:
+      "El destructuring de ES6 permite desempacar valores de arrays o propiedades de objetos en variables distintas con una sintaxis concisa. Es omnipresente en React: const { nombre, email } = alumno extrae propiedades del objeto, const [estado, setEstado] = useState() desempaca el array retornado por el hook. Hace el código más legible y reduce la repetición.",
+    ejemplo:
+      "En los componentes de KidoTag usás const { nombre, nivel, xp } = props para acceder directamente a las propiedades sin escribir props.nombre, props.nivel cada vez.",
+    videos: [
+      {
+        titulo: "Destructuring en JavaScript y React",
+        url: "https://www.youtube.com/results?search_query=destructuring+javascript+react+espanol",
+      },
+    ],
+  },
+  {
+    key: "spread",
+    titulo: "Spread / Rest (...)",
+    descripcionCorta:
+      "Operador que expande o agrupa elementos de arrays y objetos.",
+    descripcionLarga:
+      "El operador spread (...) expande un iterable en sus elementos individuales. En objetos copia las propiedades: {...alumno, presente: true} crea un nuevo objeto con todas las propiedades de alumno más presente. En arrays [...lista, nuevoItem] crea un nuevo array. El operador rest hace lo contrario: agrupa el resto de argumentos en un array, como en function log(primero, ...resto).",
+    ejemplo:
+      "Al actualizar el estado de un alumno en KidoTag: setAlumno(prev => ({...prev, asistencias: prev.asistencias + 1})) usás spread para copiar el objeto anterior y solo modificar un campo.",
+    videos: [
+      {
+        titulo: "Spread y Rest en JavaScript en español",
+        url: "https://www.youtube.com/results?search_query=spread+rest+javascript+espanol",
+      },
+    ],
+  },
+  {
+    key: "usestate",
+    titulo: "useState",
+    descripcionCorta:
+      "Hook de React para declarar y actualizar estado en componentes funcionales.",
+    descripcionLarga:
+      "useState es el hook más usado en React. Recibe un valor inicial y retorna un array con el valor actual y una función para actualizarlo. Cuando llamás a la función setter, React re-renderiza el componente con el nuevo valor. Es la forma de hacer que la UI reaccione a cambios: datos cargados, formularios, toggles, contadores.",
+    ejemplo:
+      "En el panel de asistencias: const [alumnos, setAlumnos] = useState([]). Cuando llega la respuesta de la API, setAlumnos(data) actualiza el estado y React re-renderiza la tabla automáticamente.",
+    videos: [
+      {
+        titulo: "useState hook de React en español",
+        url: "https://www.youtube.com/results?search_query=usestate+hook+react+espanol",
+      },
+    ],
+  },
+  {
+    key: "mvc",
+    titulo: "MVC (Modelo-Vista-Controlador)",
+    descripcionCorta:
+      "Patrón arquitectónico que separa la lógica de datos, presentación y control.",
+    descripcionLarga:
+      "MVC divide la aplicación en tres capas: el Modelo maneja los datos y la lógica de negocio (schemas de Mongoose, funciones de base de datos), la Vista presenta la información al usuario (componentes React, HTML), y el Controlador recibe las peticiones, coordina el modelo y devuelve la respuesta (funciones de controlador en Express). Esta separación facilita el mantenimiento y el testing.",
+    ejemplo:
+      "En el backend de KidoTag: Alumno.js es el Modelo (schema Mongoose), alumnoController.js es el Controlador (lógica getAlumnos, crearAlumno), y el frontend React es la Vista que muestra los datos.",
+    videos: [
+      {
+        titulo: "Patrón MVC explicado en español",
+        url: "https://www.youtube.com/results?search_query=patron+mvc+explicado+espanol",
+      },
+    ],
+  },
+  {
+    key: "websockets",
+    titulo: "WebSockets",
+    descripcionCorta:
+      "Protocolo de comunicación bidireccional y persistente entre cliente y servidor.",
+    descripcionLarga:
+      "A diferencia de HTTP (donde el cliente siempre inicia la petición), WebSockets establece un canal de comunicación permanente donde tanto cliente como servidor pueden enviar mensajes en cualquier momento. Socket.IO usa WebSockets como transporte principal. Son ideales para aplicaciones en tiempo real: notificaciones instantáneas, dashboards en vivo, juegos multijugador.",
+    ejemplo:
+      "En KidoTag el servidor emite socket.emit('nueva-asistencia', datos) cuando detecta una tarjeta NFC, y todos los navegadores conectados reciben la notificación sin necesidad de hacer polling.",
+    videos: [
+      {
+        titulo: "WebSockets en JavaScript en español",
+        url: "https://www.youtube.com/results?search_query=websockets+javascript+espanol",
+      },
+    ],
+  },
+  {
+    key: "rbac",
+    titulo: "RBAC (Control de Acceso Basado en Roles)",
+    descripcionCorta:
+      "Sistema de permisos donde cada usuario tiene un rol que define qué puede hacer.",
+    descripcionLarga:
+      "RBAC (Role-Based Access Control) asigna permisos a roles en lugar de a usuarios individuales. Un usuario tiene un rol (admin, tutor, alumno) y ese rol determina qué rutas y recursos puede acceder. Es más escalable que asignar permisos uno a uno. En Express se implementa con middleware que verifica el campo role del JWT antes de ejecutar el controlador.",
+    ejemplo:
+      "En KidoTag solo los tutores y admins pueden ver el historial de asistencias de todos los alumnos. Un alumno solo puede ver el suyo. El middleware verificaRol('tutor','admin') bloquea el acceso a los demás.",
+    videos: [
+      {
+        titulo: "RBAC control de acceso basado en roles",
+        url: "https://www.youtube.com/results?search_query=rbac+control+acceso+roles+express+espanol",
+      },
+    ],
+  },
+  {
+    key: "css-variables",
+    titulo: "CSS Custom Properties (Variables)",
+    descripcionCorta:
+      "Variables nativas de CSS para reutilizar valores de diseño en toda la hoja de estilos.",
+    descripcionLarga:
+      "Las CSS Custom Properties (--nombre: valor) permiten definir valores reutilizables en :root o en cualquier selector. A diferencia de variables Sass, estas son dinámicas: se pueden cambiar con JavaScript en tiempo real para implementar temas (dark/light mode). Son la base del sistema de diseño de KidoTag: colores, radios, sombras y transiciones se definen una vez y se usan en todos los componentes.",
+    ejemplo:
+      "El sistema de colores de KidoTag usa --color-accent, --color-bg-surface, --color-text-primary. Al cambiar entre tema claro y oscuro, solo se redefinien estas variables en :root y toda la UI cambia automáticamente.",
+    videos: [
+      {
+        titulo: "CSS Variables Custom Properties en español",
+        url: "https://www.youtube.com/results?search_query=css+variables+custom+properties+espanol",
+      },
+    ],
+  },
+  {
+    key: "reconciliacion",
+    titulo: "Reconciliación de React",
+    descripcionCorta:
+      "Algoritmo que compara el Virtual DOM anterior con el nuevo para actualizar solo lo necesario.",
+    descripcionLarga:
+      "Cuando el estado cambia, React genera un nuevo Virtual DOM (árbol de objetos JS) y lo compara con el anterior mediante su algoritmo de reconciliación (diffing). Solo los nodos que realmente cambiaron se actualizan en el DOM real, lo que hace las actualizaciones muy eficientes. La prop key en listas ayuda a React a identificar qué elementos se movieron, agregaron o eliminaron.",
+    ejemplo:
+      "Cuando agregás una asistencia en KidoTag, React no re-renderiza toda la tabla sino solo la fila del alumno modificado, gracias a la reconciliación con key={alumno._id}.",
+    videos: [
+      {
+        titulo: "Virtual DOM y reconciliación en React",
+        url: "https://www.youtube.com/results?search_query=virtual+dom+reconciliacion+react+espanol",
+      },
+    ],
+  },
+  {
+    key: "openapi",
+    titulo: "OpenAPI / Swagger",
+    descripcionCorta:
+      "Estándar para describir APIs REST de forma legible por máquinas y humanos.",
+    descripcionLarga:
+      "OpenAPI es la especificación (formato YAML/JSON) que describe todos los endpoints de una API: rutas, métodos HTTP, parámetros, cuerpos de petición, respuestas y autenticación. Swagger es el conjunto de herramientas que generan interfaces visuales interactivas (Swagger UI) a partir de esa especificación. Con swagger-jsdoc en Express podés generar la spec automáticamente desde comentarios en el código.",
+    ejemplo:
+      "La ruta GET /api/alumnos de KidoTag está documentada en Swagger con su schema de respuesta, parámetros de query y código de error 401. Cualquier desarrollador puede probarla desde /api-docs sin instalar nada.",
+    videos: [
+      {
+        titulo: "Swagger y OpenAPI en Node.js en español",
+        url: "https://www.youtube.com/results?search_query=swagger+openapi+nodejs+espanol",
+      },
+    ],
+  },
 ];
 
 export const GLOSSARY_MAP: Record<string, GlossaryEntry> = Object.fromEntries(

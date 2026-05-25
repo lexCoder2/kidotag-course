@@ -10,6 +10,7 @@ import { useProgress } from "@/hooks/useProgress";
 import { CURRICULUM, TOTAL_LECCIONES } from "@/data/curriculum";
 import { XPToast } from "@/components/XPToast";
 import { BadgeUnlock } from "@/components/BadgeUnlock";
+import { WikiModal } from "@/components/WikiModal";
 
 export default function App() {
   const progress = useProgress();
@@ -17,6 +18,7 @@ export default function App() {
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <XPToast />
       <BadgeUnlock />
+      <WikiModal />
       <Routes>
         <Route
           path="/"

@@ -10,6 +10,8 @@ import { ApiPlayground } from "@/components/ApiPlayground";
 import { LibCard } from "@/components/LibCard";
 import { SmartCodeBlock } from "@/components/SmartCodeBlock";
 import { MdxImage } from "@/components/MdxImage";
+import { WikiLink } from "@/components/WikiLink";
+import { AutoP, AutoLi, AutoTd, AutoTh } from "@/utils/autoWikiLink";
 import type { MDXComponents } from "mdx/types";
 
 export const mdxComponents: MDXComponents = {
@@ -19,6 +21,11 @@ export const mdxComponents: MDXComponents = {
   Mermaid,
   ApiPlayground,
   LibCard,
+  WikiLink,
+  p: AutoP,
+  li: AutoLi,
+  td: AutoTd,
+  th: AutoTh,
   img: MdxImage,
   pre: SmartCodeBlock,
 };

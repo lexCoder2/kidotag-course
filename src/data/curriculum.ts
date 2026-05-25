@@ -66,6 +66,15 @@ const CURRICULUM_BASE: Bloque[] = [
         duracion: "25 min",
         nivel: "basico",
       },
+      {
+        slug: "00-arbol-conocimiento",
+        titulo: "Árbol de conocimiento del curso",
+        descripcion:
+          "Mapa visual completo de todos los conceptos del curso, sus prerequisitos y la ruta óptima de aprendizaje — desde JavaScript hasta el Capstone.",
+        tags: ["mapa", "prerequisitos", "ruta", "conocimiento", "overview"],
+        duracion: "15 min",
+        nivel: "basico",
+      },
     ],
   },
   {
