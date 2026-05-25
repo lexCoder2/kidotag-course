@@ -14,7 +14,7 @@ import { BadgeUnlock } from "@/components/BadgeUnlock";
 export default function App() {
   const progress = useProgress();
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <XPToast />
       <BadgeUnlock />
       <Routes>

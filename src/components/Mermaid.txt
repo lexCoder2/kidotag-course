@@ -1,0 +1,16 @@
+Mermaid
+API
+Endpoints
+localStorage
+cliente servidor
+ODM
+jwt
+http
+rest
+node
+npm
+package.JSON
+JSON
+bundler
+SSR
+SPA
