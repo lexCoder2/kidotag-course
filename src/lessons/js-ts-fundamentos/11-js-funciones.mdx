@@ -51,53 +51,45 @@ export function imprimirReporte(alumnos) {
 
 // Capitaliza el nombre completo: "ana garcia" -> "Ana Garcia"
 export function formatNombre(nombre) {
-  return nombre
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, function (c) {
-      return c.toUpperCase();
-    });
+return nombre
+.trim()
+.toLowerCase()
+.replace(/\b\w/g, function (c) {
+return c.toUpperCase();
+});
 }
 
 // Formatea un porcentaje: formatPorcentaje(95.5) -> "95.5%"
 export function formatPorcentaje(valor, decimales) {
-  var d = decimales === undefined ? 1 : decimales;
-  return Number(valor).toFixed(d) + "%";
+var d = decimales === undefined ? 1 : decimales;
+return Number(valor).toFixed(d) + "%";
 }
 
 // Calcula el promedio de un campo numerico en un array
 export function calcularPromedio(lista, campo) {
-  if (lista.length === 0) return 0;
-  var suma = lista.reduce(function (acc, item) {
-    return acc + item[campo];
-  }, 0);
-  return suma / lista.length;
+if (lista.length === 0) return 0;
+var suma = 0;
+for (var i = 0; i < lista.length; i++) {
+suma += lista[i][campo];
+}
+return suma / lista.length;
 }`,
     '/index.js': `import { formatNombre, formatPorcentaje, calcularPromedio } from "./helpers.js";
-import { imprimirReporte } from "./asistencia.js";
 
-var alumnos = [
-  { nombre: "ana garcia", asistencia: 95 },
-  { nombre: "luis mendez", asistencia: 78 },
-  { nombre: "mia torres", asistencia: 62 },
+const alumnos = [
+{ nombre: "ana garcia", asistencia: 95 },
+{ nombre: "luis mendez", asistencia: 78 },
+{ nombre: "mia torres", asistencia: 62 },
 ];
 
-console.log("=== KidoTag Utils v3 ===");
+// Probar cada funcion individualmente
+console.log(formatNombre("ana garcia"));
+console.log(formatPorcentaje(95.5));
+console.log(formatPorcentaje(78, 0));
 
-console.log("--- Nombres formateados ---");
-alumnos.forEach(function (a) {
-  console.log(" ", formatNombre(a.nombre));
-});
-
-console.log("--- Porcentajes ---");
-alumnos.forEach(function (a) {
-  console.log(" " + formatNombre(a.nombre) + ": " + formatPorcentaje(a.asistencia));
-});
-
-var prom = calcularPromedio(alumnos, "asistencia");
-console.log("Promedio del grupo:", formatPorcentaje(prom));
-
-imprimirReporte(alumnos);`,
+// Calcular promedio del grupo
+const prom = calcularPromedio(alumnos, "asistencia");
+console.log("Promedio del grupo:", formatPorcentaje(prom));`,
 }}
 pasosIncrementales={[
 "Ejecuta y verifica que formatNombre capitaliza correctamente cada nombre.",

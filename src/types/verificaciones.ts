@@ -63,6 +63,53 @@ export interface JestCheck {
   describeNombre?: string;
 }
 
+// ─── JS Runtime Check (ejecuta código del usuario via new Function + shim CommonJS) ───
+export interface JsRuntimeCheck {
+  tipo: "js-runtime";
+  // Archivo del sandbox a evaluar, ej. "/app.js"
+  entryFile: string;
+  // Código opcional inyectado ANTES del módulo del usuario (seed data, helpers, etc.)
+  setup?: string;
+  // Cuerpo de la función de aserción (string que se convierte en async function).
+  // Recibe `exports` (lo que exporta el archivo) y `require` (el shim).
+  // Lanzar un error = fallo con el mensaje; retornar normalmente = pasó.
+  assertion: string;
+  timeoutMs?: number; // default 3000
+}
+
+// ─── Node-API Scenario Check ───────────────────────────────────────────────
+export interface ExpectShape {
+  status?: number;
+  jsonShape?: Record<string, unknown>; // deep partial match (claves extra en actual están OK)
+  bodyContains?: string;
+}
+
+export interface ApiScenario {
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  url: string;
+  body?: Record<string, unknown>;
+  headers?: Record<string, string>;
+  expect: ExpectShape;
+  descripcion?: string; // texto descriptivo para el mensaje de error
+}
+
+export interface NodeApiCheck {
+  tipo: "node-api";
+  // Archivo del sandbox que exporta la app Express (module.exports = app)
+  entryFile: string;
+  // Escenarios ejecutados secuencialmente contra la app (estado persistido entre escenarios)
+  scenarios: ApiScenario[];
+}
+
+// ─── Vitest-style Check ─────────────────────────────────────────────────────
+export interface VitestCheck {
+  tipo: "vitest";
+  // Código de test completo usando describe/it/expect (subconjunto compatible con jest)
+  testCode: string;
+  // Nombre exacto del `it("name", ...)` a aislar para granularidad por check
+  itName?: string;
+}
+
 // ─── Una verificación individual ───
 export type Verificacion =
   | ({
@@ -76,7 +123,25 @@ export type Verificacion =
       titulo: string;
       descripcion?: string;
       pista?: string;
-    } & JestCheck);
+    } & JestCheck)
+  | ({
+      id: string;
+      titulo: string;
+      descripcion?: string;
+      pista?: string;
+    } & JsRuntimeCheck)
+  | ({
+      id: string;
+      titulo: string;
+      descripcion?: string;
+      pista?: string;
+    } & NodeApiCheck)
+  | ({
+      id: string;
+      titulo: string;
+      descripcion?: string;
+      pista?: string;
+    } & VitestCheck);
 
 // ─── Resultado de una corrida ───
 export interface ResultadoVerificacion {

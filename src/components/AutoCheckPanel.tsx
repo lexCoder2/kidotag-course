@@ -10,9 +10,8 @@ import {
   LoaderCircle,
   Play,
   RotateCcw,
-  Trophy,
 } from "lucide-react";
-import { ejecutarPatronCheck } from "./runners/PatternCheckRunner";
+import { ejecutarVerificacion } from "./runners/CheckDispatcher";
 import { useGamificacion } from "@/hooks/useGamificacion";
 import type {
   EstadoVerificacion,
@@ -94,66 +93,56 @@ export function AutoCheckPanel({
     [progressKey, requiredKey, total],
   );
 
-  const ejecutarUno = useCallback(
-    (v: Verificacion): ResultadoVerificacion => {
-      if (v.tipo === "jest") {
-        // El runner Jest aún no está disponible; mostrar mensaje claro.
-        return {
-          estado: "fallida",
-          mensaje:
-            "Los tests Jest todavía no se ejecutan en este sandbox. (TODO)",
-        };
-      }
-      return ejecutarPatronCheck(sandpack.files, v);
-    },
-    [sandpack.files],
-  );
-
-  const verificarTodo = useCallback(() => {
-    const nuevos: EstadoMap = {};
+  const verificarTodo = useCallback(async () => {
+    // Marcar todos como "corriendo" antes de empezar
+    const corriendo: EstadoMap = {};
     verificaciones.forEach((v) => {
-      nuevos[v.id] = { estado: "corriendo" };
+      corriendo[v.id] = { estado: "corriendo" };
     });
-    setEstados(nuevos);
+    setEstados(corriendo);
 
-    // Pequeño retraso visual para que se vea el "corriendo"
-    setTimeout(() => {
-      const resultados: EstadoMap = {};
-      let pasadasAhora = 0;
-      verificaciones.forEach((v) => {
-        const r = ejecutarUno(v);
-        resultados[v.id] = r;
-        if (r.estado === "pasada") pasadasAhora += 1;
-      });
-      setEstados(resultados);
+    // Ejecutar todos en paralelo
+    const pares = await Promise.all(
+      verificaciones.map(async (v) => ({
+        id: v.id,
+        titulo: v.titulo,
+        r: await ejecutarVerificacion(sandpack.files, v),
+      })),
+    );
 
-      // XP por checks recién pasados (10 XP por cada uno que pase, +50 bonus si pasa todo)
-      const antes = totalPasadas;
-      const nuevosOk = Math.max(0, pasadasAhora - antes);
-      if (nuevosOk > 0) {
-        ganarXP(
-          10 * nuevosOk,
-          `${nuevosOk} verificación(es) en "${titulo || sandboxId}"`,
-        );
-      }
-      if (pasadasAhora === total && total > 0 && antes < total) {
-        ganarXP(50, `Sandbox completo: "${titulo || sandboxId}"`);
-        desbloquearInsignia(
-          `sandbox-${lessonSlug}-${sandboxId}`,
-          `Sandbox completado`,
-          `Completaste "${titulo || sandboxId}" con todas las verificaciones.`,
-          "trophy",
-        );
-      }
+    const resultados: EstadoMap = {};
+    let pasadasAhora = 0;
+    pares.forEach(({ id, r }) => {
+      resultados[id] = r;
+      if (r.estado === "pasada") pasadasAhora += 1;
+    });
+    setEstados(resultados);
 
-      persistir(pasadasAhora);
-    }, 220);
+    // XP por checks recién pasados
+    const antes = totalPasadas;
+    const nuevosOk = Math.max(0, pasadasAhora - antes);
+    if (nuevosOk > 0) {
+      ganarXP(
+        10 * nuevosOk,
+        `${nuevosOk} verificación(es) en "${titulo || sandboxId}"`,
+      );
+    }
+    if (pasadasAhora === total && total > 0 && antes < total) {
+      ganarXP(50, `Sandbox completo: "${titulo || sandboxId}"`);
+      desbloquearInsignia(
+        `sandbox-${lessonSlug}-${sandboxId}`,
+        `Sandbox completado`,
+        `Completaste "${titulo || sandboxId}" con todas las verificaciones.`,
+        "trophy",
+      );
+    }
+    persistir(pasadasAhora);
   }, [
     desbloquearInsignia,
-    ejecutarUno,
     ganarXP,
     lessonSlug,
     persistir,
+    sandpack.files,
     sandboxId,
     titulo,
     total,
@@ -162,42 +151,38 @@ export function AutoCheckPanel({
   ]);
 
   const verificarUno = useCallback(
-    (v: Verificacion) => {
+    async (v: Verificacion) => {
       setEstados((prev) => ({ ...prev, [v.id]: { estado: "corriendo" } }));
-      setTimeout(() => {
-        const r = ejecutarUno(v);
-        setEstados((prev) => {
-          const next = { ...prev, [v.id]: r };
-          const pasadas = verificaciones.filter(
-            (vv) => next[vv.id]?.estado === "pasada",
-          ).length;
+      const r = await ejecutarVerificacion(sandpack.files, v);
+      setEstados((prev) => {
+        const next = { ...prev, [v.id]: r };
+        const pasadas = verificaciones.filter(
+          (vv) => next[vv.id]?.estado === "pasada",
+        ).length;
 
-          // XP sólo si este check acaba de pasar (no estaba pasado antes)
-          const estabaPasado = prev[v.id]?.estado === "pasada";
-          if (r.estado === "pasada" && !estabaPasado) {
-            ganarXP(10, `Verificación: ${v.titulo}`);
-            if (pasadas === total) {
-              ganarXP(50, `Sandbox completo: "${titulo || sandboxId}"`);
-              desbloquearInsignia(
-                `sandbox-${lessonSlug}-${sandboxId}`,
-                `Sandbox completado`,
-                `Completaste "${titulo || sandboxId}" con todas las verificaciones.`,
-                "trophy",
-              );
-            }
+        const estabaPasado = prev[v.id]?.estado === "pasada";
+        if (r.estado === "pasada" && !estabaPasado) {
+          ganarXP(10, `Verificación: ${v.titulo}`);
+          if (pasadas === total) {
+            ganarXP(50, `Sandbox completo: "${titulo || sandboxId}"`);
+            desbloquearInsignia(
+              `sandbox-${lessonSlug}-${sandboxId}`,
+              `Sandbox completado`,
+              `Completaste "${titulo || sandboxId}" con todas las verificaciones.`,
+              "trophy",
+            );
           }
-
-          persistir(pasadas);
-          return next;
-        });
-      }, 180);
+        }
+        persistir(pasadas);
+        return next;
+      });
     },
     [
       desbloquearInsignia,
-      ejecutarUno,
       ganarXP,
       lessonSlug,
       persistir,
+      sandpack.files,
       sandboxId,
       titulo,
       total,
@@ -223,7 +208,8 @@ export function AutoCheckPanel({
     >
       <div className="autocheck-header">
         <h4>
-          <FlaskConical size={15} aria-hidden="true" /> Verificaciones automáticas
+          <FlaskConical size={15} aria-hidden="true" /> Verificaciones
+          automáticas
           {todasPasadas && (
             <span className="autocheck-completo-badge">
               <CheckCircle2 size={13} aria-hidden="true" /> Completo

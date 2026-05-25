@@ -44,24 +44,27 @@ export const MAX_POR_GRUPO = 35;
 
 // Plantilla base de un alumno
 export const alumnoBase = {
-  id: "a001",
-  nombre: "Ana Garcia",
-  grado: "3A",
-  presente: true,
-  tutor: null,
+id: "a001",
+nombre: "Ana Garcia",
+grado: "3A",
+presente: true,
+tutor: null,
 };`,
     '/index.js': `import { ESCUELA, CICLO, MAX_POR_GRUPO, alumnoBase } from "./config.js";
 
-console.log("=== KidoTag Utils v1 ===");
 console.log("Escuela:", ESCUELA);
 console.log("Ciclo:", CICLO);
 console.log("Max por grupo:", MAX_POR_GRUPO);
-console.log("Alumno base:", alumnoBase);
 
-console.log("--- Tipos de cada campo ---");
-Object.entries(alumnoBase).forEach(function (entry) {
-  console.log(entry[0] + ": " + JSON.stringify(entry[1]) + " (" + typeof entry[1] + ")");
-});`,
+// Acceder a propiedades de un objeto con el punto (.)
+console.log("Nombre:", alumnoBase.nombre);
+console.log("Grado:", alumnoBase.grado);
+console.log("Presente:", alumnoBase.presente);
+
+// typeof devuelve el tipo del valor
+console.log("Tipo de nombre:", typeof alumnoBase.nombre);
+console.log("Tipo de presente:", typeof alumnoBase.presente);
+console.log("Tipo de tutor:", typeof alumnoBase.tutor);`,
 }}
 pasosIncrementales={[
 "Ejecuta el sandbox y lee la salida de la consola.",

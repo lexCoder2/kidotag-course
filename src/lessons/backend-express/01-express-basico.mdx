@@ -1,3 +1,5 @@
+import desafio from "./01-express-basico.desafios";
+
 # Express: primeros pasos
 
 <LibCard
@@ -69,24 +71,17 @@ app.listen(3000);
 
 <CodePlayground
   titulo="Servidor Express básico — estructura de kidotag10"
+  desafio={desafio}
   archivos={{
     '/index.js': `const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ─── Middlewares globales ───────────────────────
 app.use(express.json()); // Parsear body JSON
-app.use(express.urlencoded({ extended: true }));
-
-// Middleware de logging (para entender el flujo)
-app.use((req, res, next) => {
-console.log(\`[\${req.method}] \${req.url}\`);
-next(); // ← SIEMPRE llamar next() para continuar
-});
 
 // ─── Rutas ──────────────────────────────────────
 app.get("/", (req, res) => {
-res.json({ mensaje: "🚀 API kidotag10 funcionando", version: "1.0" });
+res.json({ mensaje: "API kidotag10 funcionando", version: "1.0" });
 });
 
 // Parámetros de ruta (:id)
@@ -95,13 +90,10 @@ const { id } = req.params;
 res.json({ id, nombre: "Ana García", grado: "3A" });
 });
 
-// Query strings (?grado=3A&activo=true)
+// Query strings (?grado=3A)
 app.get("/alumnos", (req, res) => {
-const { grado, activo } = req.query;
-res.json({
-filtros: { grado, activo },
-resultados: [],
-});
+const { grado } = req.query;
+res.json({ filtro: grado || "todos", resultados: [] });
 });
 
 // Body con datos (POST)
@@ -110,64 +102,13 @@ const { nombre, matricula } = req.body;
 if (!nombre || !matricula) {
 return res.status(400).json({ ok: false, error: "Faltan datos" });
 }
-res.status(201).json({
-ok: true,
-data: { id: Date.now(), nombre, matricula },
-});
-});
-
-// ─── Error handler ──────────────────────────────
-app.use((err, req, res, next) => {
-console.error(err.stack);
-res.status(500).json({ ok: false, error: "Error interno del servidor" });
+res.status(201).json({ ok: true, data: { id: Date.now(), nombre, matricula } });
 });
 
 app.listen(PORT, () => console.log(\`Servidor en http://localhost:\${PORT}\`));`,
 }}
 plantilla="node"
 mostrarConsola
-verificaciones={[
-  {
-    id: "define-ruta-get",
-    titulo: "Define al menos una ruta GET",
-    descripcion: "Toda API REST tiene rutas GET para consultar datos.",
-    tipo: "contiene",
-    patron: "app.get(",
-    pista: "Ejemplo: app.get('/ruta', (req, res) => { res.json({...}); })",
-  },
-  {
-    id: "usa-express-json",
-    titulo: "Middleware express.json() configurado",
-    descripcion: "express.json() es necesario para parsear cuerpos JSON.",
-    tipo: "contiene",
-    patron: "express.json()",
-    pista: "Agrega: app.use(express.json()); antes de las rutas.",
-  },
-  {
-    id: "accede-req-body",
-    titulo: "Accede a req.body en algún handler",
-    descripcion: "req.body contiene los datos enviados en el cuerpo de la petición.",
-    tipo: "contiene",
-    patron: "req.body",
-    pista: "Ejemplo en un POST: const { nombre } = req.body;",
-  },
-  {
-    id: "usa-status",
-    titulo: "Usa códigos de estado HTTP (res.status)",
-    descripcion: "Las APIs REST deben devolver códigos de estado apropiados.",
-    tipo: "contiene",
-    patron: "res.status(",
-    pista: "Ejemplo: res.status(201).json({ ok: true, data })",
-  },
-  {
-    id: "escucha-puerto",
-    titulo: "Servidor inicia con app.listen()",
-    descripcion: "app.listen() arranca el servidor HTTP.",
-    tipo: "contiene",
-    patron: "app.listen(",
-    pista: "Ejemplo: app.listen(PORT, () => console.log(`Puerto ${PORT}`))",
-},
-]}
 />
 
 ## El objeto `req` y `res`

@@ -1,3 +1,5 @@
+import desafio from "./11-js-arrays-objetos.desafios";
+
 # Arrays y objetos en lenguaje humano
 
 ## Array
@@ -50,65 +52,45 @@ export function formatPorcentaje(v, d) {
 }
 export function calcularPromedio(lista, campo) {
   if (!lista.length) return 0;
-  return (
-    lista.reduce(function (a, i) {
-      return a + i[campo];
-    }, 0) / lista.length
-  );
+  var suma = 0;
+  for (var i = 0; i < lista.length; i++) {
+    suma += lista[i][campo];
+  }
+  return suma / lista.length;
 }`, readOnly: true },
     '/data.js': `// data.js — Datos del grupo (NUEVA)
 import { ESCUELA } from "./config.js";
 
 // Array: cada elemento es un objeto alumno
 export var alumnos = [
-  { id: "a001", nombre: "Ana Garcia", grado: "3A", asistencia: 95, faltas: 1 },
-  { id: "a002", nombre: "Luis Mendez", grado: "3A", asistencia: 78, faltas: 5 },
-  { id: "a003", nombre: "Mia Torres", grado: "4B", asistencia: 100, faltas: 0 },
-  { id: "a004", nombre: "Carlos Ruiz", grado: "4B", asistencia: 62, faltas: 9 },
+{ id: "a001", nombre: "Ana Garcia", grado: "3A", asistencia: 95, faltas: 1 },
+{ id: "a002", nombre: "Luis Mendez", grado: "3A", asistencia: 78, faltas: 5 },
+{ id: "a003", nombre: "Mia Torres", grado: "4B", asistencia: 100, faltas: 0 },
+{ id: "a004", nombre: "Carlos Ruiz", grado: "4B", asistencia: 62, faltas: 9 },
 ];
 
 // Objeto: registro de asistencia de un dia especifico
 export var registroHoy = {
-  escuela: ESCUELA,
-  fecha: "2026-05-23",
-  grupo: "3A",
-  presentes: ["a001", "a003"],
-  ausentes: ["a002", "a004"],
-  notas: "Sin novedades",
+escuela: ESCUELA,
+fecha: "2026-05-23",
+grupo: "3A",
+presentes: ["a001", "a003"],
+ausentes: ["a002", "a004"],
+notas: "Sin novedades",
 };`,
     '/index.js': `import { alumnos, registroHoy } from "./data.js";
-import { formatNombre, formatPorcentaje, calcularPromedio } from "./helpers.js";
+import { formatNombre, formatPorcentaje } from "./helpers.js";
 
-console.log("=== KidoTag Utils v4 ===");
+// Array: cada posicion guarda un objeto alumno
+for (let i = 0; i < alumnos.length; i++) {
+const a = alumnos[i];
+console.log(a.id, "-", formatNombre(a.nombre), a.grado, formatPorcentaje(a.asistencia));
+}
 
-console.log("--- Array de alumnos (" + alumnos.length + ") ---");
-alumnos.forEach(function (a, i) {
-  console.log(
-    "[" +
-      i +
-      "] " +
-      formatNombre(a.nombre) +
-      " (" +
-      a.grado +
-      ") — " +
-      formatPorcentaje(a.asistencia),
-  );
-});
-
-console.log("--- Registro de hoy ---");
+// Objeto: acceder a sus propiedades directamente
 console.log("Fecha:", registroHoy.fecha);
-console.log("Grupo:", registroHoy.grupo);
 console.log("Presentes:", registroHoy.presentes.join(", "));
-console.log("Ausentes:", registroHoy.ausentes.join(", "));
-
-var prom = calcularPromedio(alumnos, "asistencia");
-console.log("Promedio del grupo:", formatPorcentaje(prom));`,
+console.log("Ausentes:", registroHoy.ausentes.join(", "));`,
 }}
-pasosIncrementales={[
-"Ejecuta y lee la estructura del array alumnos y el objeto registroHoy.",
-"Agrega un quinto alumno al array en data.js con datos de tu eleccion.",
-"Cambia registroHoy.fecha a la fecha de hoy y registroHoy.notas a otro mensaje.",
-"Agrega un campo 'activo: true' a cada alumno del array.",
-]}
-retoFinal="Crea un objeto 'grupo4B' con sus propios alumnos (al menos 3). Imprime ambos grupos en index.js y compara sus promedios de asistencia con formatPorcentaje."
+desafio={desafio}
 />

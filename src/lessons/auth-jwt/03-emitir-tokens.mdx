@@ -1,3 +1,5 @@
+import desafio from "./03-emitir-tokens.desafios";
+
 # Emitir tokens: loginUnificado
 
 kidotag10 tiene **tres tipos de usuario** (tutor, profesor, admin), pero todos
@@ -129,6 +131,43 @@ Ctrl-->>C: { ok: true, data: { token, usuario } }`}
   `escuelaId` (para filtrar datos por escuela). Nunca incluir el password ni
   datos sensibles.
 </Callout>
+
+## Desafío: implementa loginUnificado
+
+Implementa el endpoint de login con los mismos pasos que usa kidotag10 en producción:
+
+<CodePlayground
+  titulo="loginUnificado — Express + bcrypt + JWT"
+  plantilla="node"
+  desafio={desafio}
+  archivos={{
+    '/index.js': `const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const app = express();
+app.use(express.json());
+
+const SECRET = "secreto_kidotag";
+const usuarios = [
+{ id: "1", email: "profe@escuela.mx", password: "$mock$10$" + btoa("Futbol123"), rol: "profesor" },
+{ id: "2", email: "tutor@gmail.com", password: "$mock$10$" + btoa("Casa2024"), rol: "tutor" },
+];
+
+app.post("/api/auth/login", async (req, res) => {
+const { email, password, rol } = req.body;
+if (!email || !password || !rol)
+return res.status(400).json({ ok: false, error: "Campos requeridos: email, password, rol" });
+const usuario = usuarios.find(u => u.email === email && u.rol === rol);
+if (!usuario) return res.status(401).json({ ok: false, error: "Credenciales incorrectas" });
+const ok = await bcrypt.compare(password, usuario.password);
+if (!ok) return res.status(401).json({ ok: false, error: "Credenciales incorrectas" });
+const token = jwt.sign({ id: usuario.id, rol: usuario.rol }, SECRET, { expiresIn: "7d" });
+res.json({ ok: true, data: { token } });
+});
+
+module.exports = app;`,
+}}
+/>
 
 <Quiz
   preguntas={[

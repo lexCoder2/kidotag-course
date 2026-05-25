@@ -7,6 +7,7 @@ import { Link, useParams } from "react-router-dom";
 import { CircleArrowRight, CircleCheck, FlaskConical } from "lucide-react";
 import { MonacoSandpackEditor } from "./MonacoSandpackEditor";
 import type { Verificacion } from "@/types/verificaciones";
+import type { Desafio } from "@/types/desafios";
 
 type Plantilla = "react" | "react-ts" | "vanilla" | "vanilla-ts" | "node";
 
@@ -78,6 +79,7 @@ interface Props {
   forceExpanded?: boolean;
   soloConsola?: boolean;
   verificaciones?: Verificacion[];
+  desafio?: Desafio;
 }
 
 function slugify(value: string): string {
@@ -112,6 +114,7 @@ export function CodePlayground({
   forceExpanded = false,
   soloConsola = false,
   verificaciones,
+  desafio,
 }: Props) {
   const { slug: lessonSlug } = useParams<{ slug: string }>();
   const [esMobile, setEsMobile] = useState(false);
@@ -160,9 +163,20 @@ export function CodePlayground({
       buildSandboxId(
         titulo || "sandbox",
         entryFile || archivoPrincipal,
-        verificaciones ? verificaciones.length : pasos.length,
+        desafio
+          ? desafio.pasos.length
+          : verificaciones
+            ? verificaciones.length
+            : pasos.length,
       ),
-    [archivoPrincipal, entryFile, pasos.length, titulo, verificaciones],
+    [
+      archivoPrincipal,
+      desafio,
+      entryFile,
+      pasos.length,
+      titulo,
+      verificaciones,
+    ],
   );
 
   const sandboxRoute = lessonSlug ? `/sandbox/${lessonSlug}/${sandboxId}` : "/";
@@ -189,8 +203,8 @@ export function CodePlayground({
   });
 
   useEffect(() => {
-    // AutoCheckPanel manages progress when verificaciones is present
-    if (verificaciones) return;
+    // AutoCheckPanel/DesafioPanel manage progress when verificaciones/desafio is present
+    if (verificaciones || desafio) return;
     if (!lessonSlug || !requiredKey || !progressKey) return;
     const total = pasos.length;
     const done = completados.filter(Boolean).length;
@@ -227,6 +241,7 @@ export function CodePlayground({
       pasosIncrementales,
       retoFinal,
       verificaciones,
+      desafio,
       forceExpanded: true,
     };
 
@@ -239,6 +254,7 @@ export function CodePlayground({
     archivos,
     codigo,
     configKey,
+    desafio,
     entryFile,
     files,
     lessonSlug,
@@ -282,16 +298,21 @@ export function CodePlayground({
   }
 
   if (!forceExpanded) {
-    const totalChecks = verificaciones ? verificaciones.length : pasos.length;
-    const checksHechos = verificaciones
-      ? (() => {
-          try {
-            return Number(localStorage.getItem(progressKey) || 0);
-          } catch {
-            return 0;
-          }
-        })()
-      : totalHechos;
+    const totalChecks = desafio
+      ? desafio.pasos.length
+      : verificaciones
+        ? verificaciones.length
+        : pasos.length;
+    const checksHechos =
+      desafio || verificaciones
+        ? (() => {
+            try {
+              return Number(localStorage.getItem(progressKey) || 0);
+            } catch {
+              return 0;
+            }
+          })()
+        : totalHechos;
     const completo = totalChecks > 0 && checksHechos >= totalChecks;
 
     return (
@@ -300,7 +321,8 @@ export function CodePlayground({
         <div className="playground-launcher-body">
           <div className="playground-launcher-head">
             <span className="playground-launcher-kicker">
-              <FlaskConical size={14} aria-hidden="true" /> Sandbox guiado
+              <FlaskConical size={14} aria-hidden="true" />{" "}
+              {desafio ? "Desafío guiado" : "Sandbox guiado"}
             </span>
             <span
               className={`playground-launcher-state${completo ? " done" : ""}`}
@@ -355,7 +377,7 @@ export function CodePlayground({
           autorun: true,
           autoReload: false,
           activeFile: entryFile || archivoPrincipal,
-          initMode: "user-visible",
+          initMode: "immediate",
           bundlerURL: "https://sandpack-bundler.codesandbox.io",
         }}
         theme="auto"
@@ -365,6 +387,9 @@ export function CodePlayground({
           soloConsola={soloConsola}
           mostrarConsola={mostrarConsola}
           verificaciones={verificaciones}
+          desafio={desafio}
+          plantilla={plantillaResuelta}
+          mainFile={entryFile || archivoPrincipal}
           lessonSlug={lessonSlug || ""}
           sandboxId={sandboxId}
           requiredKey={requiredKey}

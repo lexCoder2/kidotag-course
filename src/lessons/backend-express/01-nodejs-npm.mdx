@@ -131,14 +131,14 @@ console.log("3 × 4 =", multiplicar(3, 4));
 
 // Simula lo que hace kidotag10:
 const rutas = {
-  alumnos: "/api/alumnos",
-  auth: "/api/auth",
-  grupos: "/api/grupos",
+alumnos: "/api/alumnos",
+auth: "/api/auth",
+grupos: "/api/grupos",
 };
 
-Object.entries(rutas).forEach(([nombre, ruta]) => {
-  console.log(\`Ruta registrada: \${nombre} → \${ruta}\`);
-});`,
+console.log("Ruta alumnos:", rutas.alumnos);
+console.log("Ruta auth:", rutas.auth);
+console.log("Ruta grupos:", rutas.grupos);`,
 }}
 entryFile="/index.js"
 />

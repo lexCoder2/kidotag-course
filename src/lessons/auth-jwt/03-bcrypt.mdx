@@ -1,3 +1,5 @@
+import desafio from "./03-bcrypt.desafios";
+
 # bcrypt: salt, rounds y compare
 
 <LibCard
@@ -100,6 +102,7 @@ await tutor.save(); // ← el hook hashea automáticamente
 <CodePlayground
   titulo="Simulador bcrypt"
   descripcion="Experimenta con bcrypt.hash() y bcrypt.compare()"
+  desafio={desafio}
   files={{
     "/index.js": `// Simulación del comportamiento de bcrypt
 // (bcrypt real no funciona en el navegador, esto es una demostración)
@@ -145,40 +148,6 @@ hash === hash2 ? "❌ Error" : "✅ Diferentes (salt aleatorio)",
 );`,
 }}
 entryFile="/index.js"
-verificaciones={[
-{
-id: "funcion-hash",
-titulo: "Define función de hashing (simulateHash)",
-descripcion: "El hashing convierte un password en texto irreversible usando un salt aleatorio.",
-tipo: "contiene",
-patron: "function simulateHash",
-pista: "Define: function simulateHash(password, rounds) { ... }",
-},
-{
-id: "funcion-compare",
-titulo: "Define función de comparación (simulateCompare)",
-descripcion: "La comparación re-aplica el mismo salt del hash para validar el password.",
-tipo: "contiene",
-patron: "function simulateCompare",
-pista: "Define: function simulateCompare(password, hash) { ... }",
-},
-{
-id: "mismo-password-distinto-hash",
-titulo: "Demuestra que el mismo password produce hashes distintos",
-descripcion: "El salt aleatorio hace que dos hashes del mismo password nunca sean iguales.",
-tipo: "contiene",
-patron: "hash2",
-pista: "Crea: const hash2 = simulateHash(passwordOriginal, 10); y muestra que hash !== hash2",
-},
-{
-id: "prueba-password-incorrecto",
-titulo: "Prueba que un password incorrecto es bloqueado",
-descripcion: "simulateCompare debe retornar false para un password que no coincide.",
-tipo: "contiene",
-patron: "loginIncorrecto",
-pista: "Crea: const loginIncorrecto = simulateCompare('OtroPassword', hash);",
-},
-]}
 />
 
 <Quiz

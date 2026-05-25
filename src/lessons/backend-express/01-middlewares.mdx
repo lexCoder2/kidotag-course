@@ -1,3 +1,5 @@
+import desafio from "./01-middlewares.desafios";
+
 # Middlewares en Express
 
 <LibCard
@@ -64,6 +66,7 @@ function miMiddleware(req, res, next) {
 
 <CodePlayground
   titulo="Middlewares: orden, flujo y error handling"
+  desafio={desafio}
   archivos={{
     '/app.js': `const express = require("express");
 const app = express();
@@ -73,58 +76,52 @@ app.use(express.json());
 
 // Logger personalizado
 app.use((req, res, next) => {
-  const inicio = Date.now();
-  res.on("finish", () => {
-    const ms = Date.now() - inicio;
-    console.log(\`\${req.method} \${req.url} → \${res.statusCode} [\${ms}ms]\`);
-  });
-  next();
+const inicio = Date.now();
+res.on("finish", () => {
+const ms = Date.now() - inicio;
+console.log(\`\${req.method} \${req.url} → \${res.statusCode} [\${ms}ms]\`);
+});
+next();
 });
 
 // ─── 2. Middleware de ruta (solo en /api/alumnos) ──
 function verificarToken(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) {
-    return res.status(401).json({ ok: false, error: "Token requerido" });
-  }
-  const token = auth.split(" ")[1];
-  // En kidotag10: jwt.verify(token, process.env.JWT_SECRET)
-  if (token === "token-valido") {
-    req.usuario = { id: "1", rol: "profesor" };
-    next();
-  } else {
-    res.status(403).json({ ok: false, error: "Token inválido" });
-  }
+const auth = req.headers.authorization;
+if (!auth || !auth.startsWith("Bearer ")) {
+return res.status(401).json({ ok: false, error: "Token requerido" });
+}
+const token = auth.split(" ")[1];
+// En kidotag10: jwt.verify(token, process.env.JWT_SECRET)
+if (token === "token-valido") {
+req.usuario = { id: "1", rol: "profesor" };
+next();
+} else {
+res.status(403).json({ ok: false, error: "Token inválido" });
+}
 }
 
 // ─── 3. Rutas ────────────────────────────────────
 app.get("/publico", (req, res) => {
-  res.json({ mensaje: "Esta ruta no necesita token" });
+res.json({ mensaje: "Esta ruta no necesita token" });
 });
 
 app.get("/api/alumnos", verificarToken, (req, res) => {
-  res.json({
-    ok: true,
-    usuario: req.usuario,
-    data: [{ id: 1, nombre: "Ana García" }],
-  });
+res.json({
+ok: true,
+usuario: req.usuario,
+data: [{ id: 1, nombre: "Ana García" }],
+});
 });
 
 // ─── 4. Middleware de error (4 parámetros!) ──────
 app.use((err, req, res, next) => {
-  console.error("Error:", err.message);
-  res.status(500).json({ ok: false, error: err.message });
+console.error("Error:", err.message);
+res.status(500).json({ ok: false, error: err.message });
 });
 
-app.listen(3001, () => console.log("Servidor en puerto 3001"));
-
-// Prueba:
-// GET /publico → funciona sin token
-// GET /api/alumnos → 401 sin token
-// GET /api/alumnos con header "Authorization: Bearer token-valido" → OK`,
+module.exports = app;`,
 }}
 plantilla="node"
-mostrarConsola
 />
 
 ## CORS — Cross-Origin Resource Sharing

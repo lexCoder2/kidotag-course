@@ -1,3 +1,5 @@
+import desafio from "./03-anatomia-jwt.desafios";
+
 # Anatomía de un JWT
 
 <LibCard
@@ -63,104 +65,32 @@ eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiI2NGFiMTIiLCJyb2wiOiJwcm9mZXNvciIsImV4cCI6MTc
 />
 
 <CodePlayground
-  titulo="JWT: decodificar y explorar el payload"
+  titulo="JWT en Node.js: firmar, decodificar y verificar"
+  plantilla="node"
+  desafio={desafio}
   archivos={{
-    '/App.jsx': `import { useState } from 'react'
+    '/index.js': `const jwt = require("jsonwebtoken");
 
-function base64url(str) {
-return btoa(unescape(encodeURIComponent(JSON.stringify(str))))
-.replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '\_')
-}
+const SECRET = "secreto_kidotag";
+const payload = { id: "u001", rol: "profesor" };
 
-function firmarToken(payload, secreto) {
-const header = { alg: 'HS256', typ: 'JWT' }
-const ahora = Math.floor(Date.now() / 1000)
-const p = { ...payload, iat: ahora, exp: ahora + 7 _ 24 _ 3600 }
-const datos = base64url(header) + '.' + base64url(p)
-const firma = btoa(secreto + datos).substring(0, 43).replace(/=/g, '')
-return datos + '.' + firma
-}
+// 1. Firmar
+const token = jwt.sign(payload, SECRET, { expiresIn: "7d" });
+console.log("Token:", token);
 
-function decodificarToken(token) {
-try {
-const partes = token.split('.')
-const header = JSON.parse(decodeURIComponent(escape(atob(
-partes[0].replace(/-/g, '+').replace(/_/g, '/')
-))))
-const payload = JSON.parse(decodeURIComponent(escape(atob(
-partes[1].replace(/-/g, '+').replace(/_/g, '/')
-))))
-return { header, payload }
-} catch { return null }
-}
+// 2. Ver las 3 partes
+const partes = token.split(".");
+console.log("Partes:", partes.length);
 
-const USUARIOS = {
-'profe@escuela.mx': { id: 'abc123', rol: 'profesor', nombre: 'Profe Carlos' },
-'admin@escuela.mx': { id: 'xyz789', rol: 'admin', nombre: 'Admin Ana' },
-'tutor@gmail.com': { id: 'tut456', rol: 'tutor', nombre: 'Papá de Ana' },
-}
+// 3. Decodificar payload (sin verificar)
+const payloadRaw = JSON.parse(atob(partes[1]));
+console.log("Payload decodificado:", payloadRaw);
 
-export default function App() {
-  const [email, setEmail] = useState('profe@escuela.mx')
-  const [token, setToken] = useState('')
-  const [decoded, setDecoded] = useState(null)
+// 4. Verificar firma
+const payloadVerificado = jwt.verify(token, SECRET);
+console.log("Verificado:", payloadVerificado);
 
-const generar = () => {
-const u = USUARIOS[email]
-const t = firmarToken({ userId: u.id, rol: u.rol, nombre: u.nombre }, 'secreto_kidotag')
-setToken(t)
-setDecoded(decodificarToken(t))
-}
-
-const parts = token.split('.')
-const colors = ['#dbeafe', '#dcfce7', '#fce7f3']
-const labels = ['HEADER', 'PAYLOAD', 'SIGNATURE']
-
-return (
-
-<div style={{ fontFamily: 'monospace', padding: '1.5rem', maxWidth: 550 }}>
-<h2 style={{ fontFamily: 'sans-serif' }}>🔐 JWT Explorer</h2>
-<div style={{ display: 'flex', gap: 8, marginBottom: '1rem' }}>
-<select value={email} onChange={e => { setEmail(e.target.value); setToken(''); setDecoded(null) }}
-style={{ flex: 1, padding: 8, borderRadius: 6, border: '1px solid #e2e8f0', fontFamily: 'sans-serif' }}>
-{Object.keys(USUARIOS).map(e => <option key={e}>{e}</option>)}
-</select>
-<button onClick={generar} style={{ background: '#274c77', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontFamily: 'sans-serif' }}>
-Generar JWT
-</button>
-</div>
-{token && (
-<>
-<p style={{ fontSize: 11, color: '#64748b', fontFamily: 'sans-serif', margin: '0 0 6px' }}>
-Token completo (3 partes):
-</p>
-<div style={{ wordBreak: 'break-all', fontSize: 11, lineHeight: 1.8 }}>
-{parts.map((p, i) => (
-<span key={i}>
-<span style={{ background: colors[i], padding: '2px 4px', borderRadius: 3 }} title={labels[i]}>{p}</span>
-{i < 2 && <span style={{ color: '#94a3b8' }}>.</span>}
-</span>
-))}
-</div>
-{decoded && (
-<div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: 8 }}>
-{['header', 'payload'].map((k, i) => (
-<div key={k} style={{ background: colors[i], padding: '8px', borderRadius: 6 }}>
-<strong>{labels[i]}</strong>
-<pre style={{ margin: '4px 0 0', fontSize: 12 }}>{JSON.stringify(decoded[k], null, 2)}</pre>
-</div>
-))}
-<p style={{ fontSize: 11, color: '#64748b', fontFamily: 'sans-serif', margin: 0 }}>
-⚠️ El payload es visible (Base64), ¡no almacenes passwords en el token!
-</p>
-</div>
-)}
-</>
-)}
-</div>
-)
-}
-`,
+module.exports = { token, payloadRaw, payloadVerificado };`,
 }}
 />
 

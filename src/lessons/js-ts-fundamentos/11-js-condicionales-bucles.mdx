@@ -48,34 +48,28 @@ import { ESCUELA } from "./config.js";
 
 // Condicional: determina el estado segun porcentaje
 export function getEstado(porcentaje) {
-  if (porcentaje >= 90) return "Excelente";
-  if (porcentaje >= 75) return "Regular";
-  return "En riesgo";
+if (porcentaje >= 90) return "Excelente";
+if (porcentaje >= 75) return "Regular";
+return "En riesgo";
 }
 
 // Bucle: recorre la lista e imprime el reporte
 export function imprimirReporte(alumnos) {
-  console.log("--- Reporte de " + ESCUELA + " ---");
-  for (var i = 0; i < alumnos.length; i++) {
-    var a = alumnos[i];
-    console.log(i + 1 + ". " + a.nombre + ": " + a.asistencia + "% — " + getEstado(a.asistencia));
-  }
-  console.log("Total: " + alumnos.length + " alumnos");
+console.log("--- Reporte de " + ESCUELA + " ---");
+for (let i = 0; i < alumnos.length; i++) {
+const a = alumnos[i];
+console.log(i + 1 + ". " + a.nombre + ": " + a.asistencia + "% — " + getEstado(a.asistencia));
+}
+console.log("Total: " + alumnos.length + " alumnos");
 }`,
     '/index.js': `import { getEstado, imprimirReporte } from "./asistencia.js";
 
-var alumnosDemo = [
-  { nombre: "Ana Garcia", asistencia: 95 },
-  { nombre: "Luis Mendez", asistencia: 78 },
-  { nombre: "Mia Torres", asistencia: 62 },
-  { nombre: "Carlos Ruiz", asistencia: 100 },
+const alumnosDemo = [
+{ nombre: "Ana Garcia", asistencia: 95 },
+{ nombre: "Luis Mendez", asistencia: 78 },
+{ nombre: "Mia Torres", asistencia: 62 },
+{ nombre: "Carlos Ruiz", asistencia: 100 },
 ];
-
-console.log("=== KidoTag Utils v2 ===");
-
-console.log("getEstado(95):", getEstado(95));
-console.log("getEstado(78):", getEstado(78));
-console.log("getEstado(60):", getEstado(60));
 
 imprimirReporte(alumnosDemo);`,
 }}
